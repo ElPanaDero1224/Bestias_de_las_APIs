@@ -1,8 +1,6 @@
 #Instalaciones
 """ pip install fastapi uvicorn sqlalchemy asyncmy """
 
-
-
 from fastapi import FastAPI
 from database import database
 
