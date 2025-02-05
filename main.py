@@ -51,54 +51,48 @@ async def root():
 
 @app.get('/prueba')
 async def prueba():
-    # Consulta para obtener los periodos
-    periodos_query = "SELECT id, descripcion FROM periodo"
-    periodos = await database.fetch_all(periodos_query)
+    async with database.transaction():
+        # Consulta para obtener los periodos
+        periodos_query = "SELECT id, descripcion FROM periodo"
+        periodos = await database.fetch_all(periodos_query)
 
-    # Consulta para obtener las carreras
-    carreras_query = "SELECT id, nombre_corto FROM carrera"
-    carreras = await database.fetch_all(carreras_query)
+        # Consulta para obtener las carreras
+        carreras_query = "SELECT id, nombre_corto FROM carrera"
+        carreras = await database.fetch_all(carreras_query)
 
-    resultados = []
+        # Consulta optimizada para obtener los datos de aspirantes agrupados por periodo y carrera
+        resultados_query = """
+            SELECT 
+                periodo_id,
+                primera_opcion as carrera_id,
+                COUNT(*) as total_aspirantes,
+                SUM(CASE WHEN estado = 2 THEN 1 ELSE 0 END) as examinados,
+                SUM(CASE WHEN estado = 3 THEN 1 ELSE 0 END) as admitidos,
+                SUM(CASE WHEN estado = 4 THEN 1 ELSE 0 END) as no_admitidos
+            FROM aspirante
+            GROUP BY periodo_id, primera_opcion
+        """
+        resultados_db = await database.fetch_all(resultados_query)
 
-    for periodo in periodos:
-        periodo_id = periodo["id"]
-        desc_periodo = periodo["descripcion"]
+        resultados = []
 
-        for carrera in carreras:
-            carrera_id = carrera["id"]
-            desc_carrera = carrera["nombre_corto"]
+        # Procesar los resultados de la consulta
+        for row in resultados_db:
+            periodo_id = row["periodo_id"]
+            carrera_id = row["carrera_id"]
 
-            # Consulta combinada para obtener todos los conteos en una sola consulta
-            conteo_query = """
-                SELECT 
-                    SUM(CASE WHEN estado = 1 THEN 1 ELSE 0 END) as aspirantes_count,
-                    SUM(CASE WHEN estado = 2 THEN 1 ELSE 0 END) as examinados_count,
-                    SUM(CASE WHEN estado = 3 THEN 1 ELSE 0 END) as admitidos_count,
-                    SUM(CASE WHEN estado = 4 THEN 1 ELSE 0 END) as no_admitidos_count
-                FROM aspirante 
-                WHERE periodo_id = :periodo_id 
-                AND primera_opcion = :carrera_id
-            """
-            conteo = await database.fetch_one(conteo_query, {"periodo_id": periodo_id, "carrera_id": carrera_id})
+            # Obtener descripciones de periodo y carrera
+            periodo = next((p for p in periodos if p["id"] == periodo_id), None)
+            carrera = next((c for c in carreras if c["id"] == carrera_id), None)
 
-            # Extraer los valores del conteo
-            aspirantes_count = conteo["aspirantes_count"] or 0
-            examinados_count = conteo["examinados_count"] or 0
-            admitidos_count = conteo["admitidos_count"] or 0
-            no_admitidos_count = conteo["no_admitidos_count"] or 0
-
-            # Verificar la condición
-            if aspirantes_count != 0 and examinados_count != 0 and admitidos_count != 0 and no_admitidos_count == 0:
-                # Agregar el resultado a la lista
+            if periodo and carrera:
                 resultados.append({
-                    "carrera": desc_carrera,
-                    "aspirantes": aspirantes_count,
-                    "examinados": examinados_count,
-                    "admitidos": admitidos_count,
-                    "no_admitidos": no_admitidos_count,
-                    "periodo": desc_periodo
+                    "carrera": carrera["nombre_corto"],
+                    "aspirantes": row["total_aspirantes"],
+                    "examinados": row["examinados"],
+                    "admitidos": row["admitidos"],
+                    "no_admitidos": row["no_admitidos"],
+                    "periodo": periodo["descripcion"]
                 })
 
-    # Retornar los resultados después de procesar todos los periodos y carreras
-    return resultados
+        return resultados
