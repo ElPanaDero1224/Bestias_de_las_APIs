@@ -86,8 +86,9 @@ async def prueba():
             carrera = next((c for c in carreras if c["id"] == carrera_id), None)
 
             if periodo and carrera:
+                nombre_carrera = carrera["nombre_corto"].lower().capitalize()
                 resultados.append({
-                    "carrera": carrera["nombre_corto"],
+                    "carrera": nombre_carrera,
                     "aspirantes": row["total_aspirantes"],
                     "examinados": row["examinados"],
                     "admitidos": row["admitidos"],
