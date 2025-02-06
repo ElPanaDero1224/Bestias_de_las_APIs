@@ -41,7 +41,7 @@ async def shutdown():
 
 
 
-@app.get('/prueba')
+@app.get('/ingresos')
 async def prueba():
     async with database.transaction():
         # Consulta para obtener los periodos
