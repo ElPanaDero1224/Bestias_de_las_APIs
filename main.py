@@ -22,7 +22,7 @@ async def startup():
 from fastapi import FastAPI
 
 
-# Definir una ruta para la raíz
+# Definir una ruta para la raíz (esto es para tener una referencia)
 @app.get("/")
 def read_root():
     return {"message": "¡Hola, Mundo!"}
