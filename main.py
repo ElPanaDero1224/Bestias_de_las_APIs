@@ -76,6 +76,8 @@ async def prueba():
 
         resultados = []
 
+        i = 1
+
         # Procesar los resultados de la consulta
         for row in resultados_db:
             periodo_id = row["periodo_id"]
@@ -88,12 +90,13 @@ async def prueba():
             if periodo and carrera:
                 nombre_carrera = carrera["nombre_corto"].lower().capitalize()
                 resultados.append({
+                    "id": i,
                     "carrera": nombre_carrera,
                     "aspirantes": row["total_aspirantes"],
                     "examinados": row["examinados"],
-                    "admitidos": row["admitidos"],
                     "no_admitidos": row["no_admitidos"],
                     "periodo": periodo["descripcion"]
                 })
+                i += 1
 
         return resultados
