@@ -1,5 +1,8 @@
 # Instalaciones necesarias:
 # pip install fastapi uvicorn sqlalchemy asyncmy 
+# pip install asyncmy
+# pip install databases
+# pip install aiomysql
 
 from fastapi import FastAPI
 from database import database
@@ -22,7 +25,7 @@ async def startup():
 from fastapi import FastAPI
 
 
-# Definir una ruta para la raíz
+# Definir una ruta para la raíz (esto es para tener una referencia)
 @app.get("/")
 def read_root():
     return {"message": "¡Hola, Mundo!"}
