@@ -1,5 +1,8 @@
 # Instalaciones necesarias:
 # pip install fastapi uvicorn sqlalchemy asyncmy 
+# pip install asyncmy
+# pip install databases
+# pip install aiomysql
 
 from fastapi import FastAPI
 from database import database
