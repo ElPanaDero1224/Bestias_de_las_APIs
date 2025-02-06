@@ -92,3 +92,62 @@ async def prueba():
                 i += 1
 
         return resultados
+
+#ruta para reingresos/bajas
+
+@app.get('/equivalencias')
+async def prueba():
+    async with database.transaction():
+        #4,5,7,8,20
+
+
+        pass
+
+@app.get('/maestrias')
+async def prueba():
+    async with database.transaction():
+        #15, 16, 17, 18
+
+
+        pass
+
+@app.get('/egresados')
+async def prueba():
+    async with database.transaction():
+        #4,5,7,8,20
+
+
+        pass
+
+
+@app.get('/egresados_totales')
+async def prueba():
+    async with database.transaction():
+        #4,5,7,8,20
+
+
+        pass
+
+@app.get('/titulados')
+async def prueba():
+    async with database.transaction():
+        #4,5,7,8,20
+
+
+        pass
+
+@app.get('/transporte_solicitudes')
+async def prueba():
+    async with database.transaction():
+        #4,5,7,8,20
+
+
+        pass
+
+@app.get('/rutas')
+async def prueba():
+    async with database.transaction():
+        #4,5,7,8,20
+
+
+        pass
