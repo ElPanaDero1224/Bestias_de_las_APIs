@@ -2,7 +2,7 @@
 # pip install fastapi uvicorn sqlalchemy asyncmy 
 
 from fastapi import FastAPI
-from database import database, database2
+from database import database
 from sqlalchemy import select, Table, MetaData
 
 app = FastAPI()
@@ -11,7 +11,7 @@ app = FastAPI()
 @app.on_event("startup")
 async def startup():
     app.state.db1_status = False
-    app.state.db2_status = False
+
 
     try:
         await database.connect()
@@ -19,11 +19,15 @@ async def startup():
     except Exception as e:
         print(f"❌ Error al conectar database: {e}")
 
-    try:
-        await database2.connect()
-        app.state.db2_status = True
-    except Exception as e:
-        print(f"❌ Error al conectar database2: {e}")
+from fastapi import FastAPI
+
+
+# Definir una ruta para la raíz
+@app.get("/")
+def read_root():
+    return {"message": "¡Hola, Mundo!"}
+
+
 
 # 🛑 Desconectar la base de datos cuando la API se detiene
 @app.on_event("shutdown")
@@ -31,23 +35,8 @@ async def shutdown():
     if app.state.db1_status:
         await database.disconnect()
     
-    if app.state.db2_status:
-        await database2.disconnect()
 
-# 🌐 Ruta de prueba para verificar la conexión
-@app.get("/")
-async def root():
-    db1_status = app.state.db1_status
-    db2_status = app.state.db2_status
 
-    if db1_status and db2_status:
-        return {"message": "✅ ¡Conexión exitosa a ambas bases de datos!"}
-    elif db1_status:
-        return {"message": "⚠️ Solo database está conectada. Error en database2."}
-    elif db2_status:
-        return {"message": "⚠️ Solo database2 está conectada. Error en database."}
-    else:
-        return {"message": "❌ Error: Ninguna base de datos se pudo conectar."}
 
 @app.get('/prueba')
 async def prueba():
