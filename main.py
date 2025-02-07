@@ -98,10 +98,52 @@ async def prueba():
 @app.get('/equivalencias')
 async def prueba():
     async with database.transaction():
-        #4,5,7,8,20
+        # Consulta para obtener los periodos
+        periodos_query = "SELECT id, descripcion FROM periodo"
+        periodos = await database.fetch_all(periodos_query)
 
+        # Consulta para obtener las carreras
+        carreras_query = "SELECT nombre_corto FROM carrera"
+        carreras = await database.fetch_all(carreras_query)
 
-        pass
+        # Consulta principal para obtener los datos de los pagos
+        resultado_query = """
+            SELECT 
+                periodo_id,
+                nombre_carrera as carrera,
+                COUNT(*) as total_aspirantes,
+                SUM(CASE WHEN estatus = 3 THEN 1 ELSE 0 END) as examinados,
+                SUM(CASE WHEN estatus = 1 THEN 1 ELSE 0 END) as no_admitidos
+            FROM pago
+            WHERE concepto = 'EQUIVALENCIA, REVALIDACION O TRANSFERENCIA'
+            GROUP BY periodo_id, carrera
+        """
+        resultados_db = await database.fetch_all(resultado_query)
+
+        resultados = []
+        i = 1
+
+        for row in resultados_db:
+            periodo_id = row["periodo_id"]
+            carrera = row["carrera"]
+
+            # Obtener descripciones de periodo y carrera
+            periodo = next((p for p in periodos if p["id"] == periodo_id), None)
+            carrera = next((c for c in carreras if c["nombre_corto"] == carrera), None)
+
+            if periodo and carrera:
+                nombre_carrera = carrera["nombre_corto"].lower().capitalize()
+                resultados.append({
+                    "id": i,
+                    "carrera": nombre_carrera,
+                    "aspirantes": row["total_aspirantes"],
+                    "examinados": row["examinados"],
+                    "no_admitidos": row["no_admitidos"],
+                    "periodo": periodo["descripcion"]
+                })
+                i += 1
+
+        return resultados
 
 @app.get('/maestrias')
 async def prueba():
