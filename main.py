@@ -148,7 +148,60 @@ async def prueba():
 @app.get('/maestrias')
 async def prueba():
     async with database.transaction():
-        #15, 16, 17, 18
+        # Consulta para obtener los periodos
+        periodos_query = "SELECT id, descripcion FROM periodo"
+        periodos = await database.fetch_all(periodos_query)
+
+        # Consulta para obtener las carreras
+        carreras_query = "SELECT id, nombre_oficial FROM carrera WHERE nombre_oficial LIKE '%maestria%'"
+        carreras = await database.fetch_all(carreras_query)
+
+        # Consulta optimizada para obtener los datos de aspirantes agrupados por periodo y carrera
+        resultados_query = """
+            SELECT 
+    c.id as carrera, 
+    m.generacion,
+    YEAR(e.fecha_titulacion) as anio,
+    SUM(CASE WHEN p.sexo = 'F' THEN 1 ELSE 0 END) AS mujeres,
+    SUM(CASE WHEN p.sexo = 'M' THEN 1 ELSE 0 END) AS hombres
+FROM egresado AS e
+LEFT JOIN matricula AS m ON e.matricula_id = m.id
+JOIN persona AS p ON m.persona_id = p.id
+JOIN plan_estudio AS pl ON pl.id = m.plan_estudio_id
+JOIN carrera AS c ON c.id = pl.carrera_id
+WHERE m.estado = 'E' AND e.fecha_titulacion IS NOT NULL
+GROUP BY carrera, m.generacion, c.id, anio;
+        """
+        resultados_db = await database.fetch_all(resultados_query)
+
+        resultados = []
+
+        i = 1
+
+        # Procesar los resultados de la consulta
+        for row in resultados_db:
+            periodo_id = row["periodo_id"]
+            carrera_id = row["carrera_id"]
+
+            # Obtener descripciones de periodo y carrera
+            periodo = next((p for p in periodos if p["id"] == periodo_id), None)
+            carrera = next((c for c in carreras if c["id"] == carrera_id), None)
+
+            if periodo and carrera:
+                nombre_carrera = carrera["nombre_oficial"].lower().capitalize()
+                resultados.append({
+                    "id": i,
+                    "carrera": nombre_carrera,
+                    "aspirantes": row["total_aspirantes"],
+                    "examinados": row["examinados"],
+                    "no_admitidos": row["no_admitidos"],
+                    "periodo": periodo["descripcion"]
+                })
+                i += 1
+
+        return resultados
+        
+        
 
 
         pass
@@ -156,8 +209,20 @@ async def prueba():
 @app.get('/egresados')
 async def prueba():
     async with database.transaction():
-        #4,5,7,8,20
-
+        # Consulta para obtener los periodos
+        periodos_query = "SELECT id, descripcion FROM periodo"
+        periodos = await database.fetch_all(periodos_query)
+        
+        # Consulta para obtener las carreras
+        carreras_query = "SELECT id, nombre_oficial FROM carrera"
+        carreras = await database.fetch_all(carreras_query)
+        
+        años = "SELECT DISTINCT YEAR(fecha_titulacion) AS año FROM egresado;"
+        años_db = await database.fetch_all(años)
+        
+        generacion = "SELECT DISTINCT generacion AS gen FROM matricula;"
+        generacion_db = await database.fetch_all(generacion)
+        
 
         pass
 
