@@ -209,8 +209,8 @@ GROUP BY carrera, m.generacion, c.id, anio;
 @app.get('/egresados')
 async def prueba():
     async with database.transaction():
-        # Consulta para obtener las carreras
-        carreras_query = "SELECT id, nombre_oficial FROM carrera"
+        # Consulta para obtener las carreras (incluyendo nombre_corto si es necesario)
+        carreras_query = "SELECT id, nombre_oficial, nombre_corto FROM carrera"  # Asegúrate de incluir nombre_corto
         carreras = await database.fetch_all(carreras_query)
         
         # Consulta para obtener los egresados por periodo
@@ -239,10 +239,20 @@ async def prueba():
         # Construir la lista de resultados
         resultados = []
         for row in resultados_query:
+            carrera_id = row["carrera"]  # Usamos "carrera" en lugar de "carrera_id"
+            
+            # Buscar la carrera correspondiente en la lista de carreras
+            carrera = next((c for c in carreras if c["id"] == carrera_id), None)
+            nombre_carrera = carrera['nombre_oficial'] if carrera else "Carrera no encontrada"
+            
+            # Formatear el nombre de la carrera (si es necesario)
+            if carrera and 'nombre_corto' in carrera and carrera['nombre_corto']:
+                nombre_carrera = carrera['nombre_corto'].lower().capitalize()
+            
             resultados.append({
-                "carrera": row["carrera"],
+                "carrera": nombre_carrera,  # Usamos el nombre formateado de la carrera
                 "generacion": row["generacion"],
-                "años_egreso": row["anio"],
+                "año_egreso": row["anio"],
                 "cuatrimestre": row["periodo"],  # Usamos 'periodo' en lugar de 'cuatrimestre'
                 "hombres": row["hombres"],
                 "mujeres": row["mujeres"],
