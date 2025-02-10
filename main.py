@@ -206,25 +206,56 @@ GROUP BY carrera, m.generacion, c.id, anio;
 
         pass
 
+from fastapi import FastAPI
+from databases import Database
+
+app = FastAPI()
+database = Database("your_database_url")  # Reemplaza con tu URL de base de datos
+
 @app.get('/egresados')
 async def prueba():
     async with database.transaction():
-        # Consulta para obtener los periodos
-        periodos_query = "SELECT id, descripcion FROM periodo"
-        periodos = await database.fetch_all(periodos_query)
-        
         # Consulta para obtener las carreras
         carreras_query = "SELECT id, nombre_oficial FROM carrera"
         carreras = await database.fetch_all(carreras_query)
         
-        años = "SELECT DISTINCT YEAR(fecha_titulacion) AS año FROM egresado;"
-        años_db = await database.fetch_all(años)
+        # Consulta para obtener los egresados por periodo
+        consulta = """
+            SELECT 
+                c.id as carrera, 
+                m.generacion,
+                YEAR(e.fecha_titulacion) as anio,
+                CASE 
+                    WHEN MONTH(e.fecha_titulacion) BETWEEN 1 AND 4 THEN 'ENE-ABR'
+                    WHEN MONTH(e.fecha_titulacion) BETWEEN 5 AND 8 THEN 'MAY-AGO'
+                    WHEN MONTH(e.fecha_titulacion) BETWEEN 9 AND 12 THEN 'SEP-DIC'
+                END AS periodo,  -- Nombre del periodo
+                SUM(CASE WHEN p.sexo = 'F' THEN 1 ELSE 0 END) AS mujeres,
+                SUM(CASE WHEN p.sexo = 'M' THEN 1 ELSE 0 END) AS hombres
+            FROM egresado AS e
+            LEFT JOIN matricula AS m ON e.matricula_id = m.id
+            JOIN persona AS p ON m.persona_id = p.id
+            JOIN plan_estudio AS pl ON pl.id = m.plan_estudio_id
+            JOIN carrera AS c ON c.id = pl.carrera_id
+            WHERE m.estado = 'E' AND e.fecha_titulacion IS NOT NULL
+            GROUP BY carrera, m.generacion, c.id, anio, periodo;  -- Agrupa por periodo
+        """
+        resultados_query = await database.fetch_all(consulta)
         
-        generacion = "SELECT DISTINCT generacion AS gen FROM matricula;"
-        generacion_db = await database.fetch_all(generacion)
+        # Construir la lista de resultados
+        resultados = []
+        for row in resultados_query:
+            resultados.append({
+                "carrera": row["carrera"],
+                "generacion": row["generacion"],
+                "años_egreso": row["anio"],
+                "cuatrimestre": row["periodo"],  # Usamos 'periodo' en lugar de 'cuatrimestre'
+                "hombres": row["hombres"],
+                "mujeres": row["mujeres"],
+                "egresados": row["hombres"] + row["mujeres"]  # Calculamos el total de egresados
+            })
         
-
-        pass
+        return resultados
 
 
 @app.get('/egresados_totales')
