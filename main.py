@@ -148,7 +148,7 @@ async def prueba():
 @app.get('/maestrias')
 async def prueba():
     async with database.transaction():
-        # Consulta para obtener los periodos
+         # Consulta para obtener los periodos
         periodos_query = "SELECT id, descripcion FROM periodo"
         periodos = await database.fetch_all(periodos_query)
 
@@ -159,18 +159,14 @@ async def prueba():
         # Consulta optimizada para obtener los datos de aspirantes agrupados por periodo y carrera
         resultados_query = """
             SELECT 
-    c.id as carrera, 
-    m.generacion,
-    YEAR(e.fecha_titulacion) as anio,
-    SUM(CASE WHEN p.sexo = 'F' THEN 1 ELSE 0 END) AS mujeres,
-    SUM(CASE WHEN p.sexo = 'M' THEN 1 ELSE 0 END) AS hombres
-FROM egresado AS e
-LEFT JOIN matricula AS m ON e.matricula_id = m.id
-JOIN persona AS p ON m.persona_id = p.id
-JOIN plan_estudio AS pl ON pl.id = m.plan_estudio_id
-JOIN carrera AS c ON c.id = pl.carrera_id
-WHERE m.estado = 'E' AND e.fecha_titulacion IS NOT NULL
-GROUP BY carrera, m.generacion, c.id, anio;
+                periodo_id,
+                primera_opcion as carrera_id,
+                COUNT(*) as total_aspirantes,
+                SUM(CASE WHEN estado = 2 THEN 1 ELSE 0 END) as examinados,
+                SUM(CASE WHEN estado = 3 THEN 1 ELSE 0 END) as admitidos,
+                SUM(CASE WHEN estado = 4 THEN 1 ELSE 0 END) as no_admitidos
+            FROM aspirante
+            GROUP BY periodo_id, primera_opcion
         """
         resultados_db = await database.fetch_all(resultados_query)
 
@@ -205,6 +201,7 @@ GROUP BY carrera, m.generacion, c.id, anio;
 
 
         pass
+#carreras_query = "SELECT id, nombre_oficial FROM carrera WHERE nombre_oficial LIKE '%maestria%'"
 
 @app.get('/egresados')
 async def prueba():
