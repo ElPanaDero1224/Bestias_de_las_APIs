@@ -206,12 +206,6 @@ GROUP BY carrera, m.generacion, c.id, anio;
 
         pass
 
-from fastapi import FastAPI
-from databases import Database
-
-app = FastAPI()
-database = Database("your_database_url")  # Reemplaza con tu URL de base de datos
-
 @app.get('/egresados')
 async def prueba():
     async with database.transaction():
