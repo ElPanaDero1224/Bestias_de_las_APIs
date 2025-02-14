@@ -37,7 +37,9 @@ def read_root():
 async def shutdown():
     if app.state.db1_status:
         await database.disconnect()
-    
+
+
+
 
 
 
@@ -256,6 +258,66 @@ async def prueba():
                 "egresados": row["hombres"] + row["mujeres"]  # Calculamos el total de egresados
             })
         
+        return resultados
+
+@app.get('/nuevosIngresos')
+async def nuevos_ingresos():
+    async with database.transaction():
+        # Consulta para obtener las carreras
+        carreras_query = "SELECT id, nombre_oficial, nombre_corto FROM carrera"
+        carreras = await database.fetch_all(carreras_query)
+
+
+        # Consulta principal para obtener los datos de los aspirantes
+        consulta = """
+        SELECT 
+            asp.primera_opcion as carrera_id,
+            asp.periodo_id AS IDperiodo,
+            per.sexo,
+            p.descripcion AS periodo,
+            SUM(CASE WHEN m.matricula IS NOT NULL THEN 1 ELSE 0 END) AS ingresados,
+            COUNT(asp.id) AS total_aspirantes,
+            SUM(CASE WHEN asp.estado = 3 THEN 1 ELSE 0 END) AS admitidos,
+            CASE
+                WHEN p.descripcion LIKE '%PRIMER%' THEN '1er Proceso'
+                WHEN p.descripcion LIKE '%SEGUNDA%' THEN '2do Proceso'
+                WHEN p.descripcion LIKE '%TERCER%' THEN '3er Proceso'
+                WHEN p.descripcion LIKE '%CUARTA%' THEN '4to Proceso'
+                ELSE '1er Proceso'
+            END AS proceso
+        FROM 
+            aspirante AS asp
+        JOIN 
+            persona AS per ON asp.persona_id = per.id
+        LEFT JOIN 
+            matricula AS m ON m.persona_id = per.id
+        JOIN 
+            periodo AS p ON p.id = asp.periodo_id
+        GROUP BY 
+            asp.periodo_id, per.sexo, p.descripcion, asp.primera_opcion;
+        """
+
+        resultados_query = await database.fetch_all(consulta)
+
+        # Procesar los resultados
+        resultados = []
+        for row in resultados_query:
+            sexo = "Masculino" if row["sexo"] == "M" else "Femenino"
+
+            # Obtener el nombre de la carrera
+            carrera = next((c for c in carreras if c["id"] == row["carrera_id"]), None)
+            nombre_carrera = carrera["nombre_oficial"] if carrera else "Desconocido"
+
+            resultados.append({
+                "admitidos": row["admitidos"],
+                "carrera": nombre_carrera,
+                "inscritos": row["total_aspirantes"],
+                "periodo": row["periodo"],
+                "proceso": row["proceso"],  # Usamos la columna 'proceso' calculada en la consulta
+                "sexo": sexo,
+                "total_ingresos": row["ingresados"]
+            })
+
         return resultados
 
 
