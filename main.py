@@ -329,10 +329,83 @@ async def prueba():
 
         pass
 
+
+
+
+
 @app.get('/titulados')
-async def prueba():
+async def titulados():
     async with database.transaction():
-        #4,5,7,8,20
+        # Consulta para obtener las carreras
+        carreras_query = "SELECT id, nombre_oficial, nombre_corto FROM carrera"
+        carreras = await database.fetch_all(carreras_query)
+
+        # Consulta para obtener los egresados por periodo
+        consulta = """
+        SELECT 
+            c.id AS carrera_id, 
+            m.generacion,
+            e.fecha_titulacion AS fecha_titulacion,
+            CASE 
+                WHEN MONTH(e.fecha_titulacion) BETWEEN 1 AND 4 THEN 'ENE-ABR'
+                WHEN MONTH(e.fecha_titulacion) BETWEEN 5 AND 8 THEN 'MAY-AGO'
+                WHEN MONTH(e.fecha_titulacion) BETWEEN 9 AND 12 THEN 'SEP-DIC'
+            END AS cuatrimestre, 
+            COUNT(e.id) AS total
+        FROM 
+            egresado AS e
+        LEFT JOIN 
+            matricula AS m ON e.matricula_id = m.id
+        JOIN 
+            persona AS p ON m.persona_id = p.id
+        JOIN 
+            plan_estudio AS pl ON pl.id = m.plan_estudio_id
+        JOIN 
+            carrera AS c ON c.id = pl.carrera_id
+        WHERE 
+            m.estado = 'E' 
+            AND e.fecha_titulacion IS NOT NULL 
+            AND e.estatus = 1
+        GROUP BY 
+            c.id, m.generacion, e.fecha_titulacion, cuatrimestre;
+        """
+
+        resultados_query = await database.fetch_all(consulta)
+
+        # Construir la lista de resultados
+        resultados = []
+        for row in resultados_query:
+            carrera_id = row["carrera_id"]
+            
+            # Buscar la carrera correspondiente en la lista de carreras
+            carrera = next((c for c in carreras if c["id"] == carrera_id), None)
+            nombre_carrera = carrera["nombre_oficial"] if carrera else "Carrera no encontrada"
+            
+            # Usar el nombre corto si está disponible
+            if carrera and hasattr(carrera, "nombre_corto") and carrera["nombre_corto"]:
+                nombre_carrera = carrera["nombre_corto"].lower().capitalize()
+            
+            resultados.append({
+                "carrera": nombre_carrera,  # Nombre de la carrera formateado
+                "generacion": row["generacion"],
+                "fecha_titulacion": row["fecha_titulacion"],
+                "cuatrimestre_egreso": row["cuatrimestre"],
+                "total": row["total"]
+            })
+        
+        return resultados
+
+
+
+
+
+
+
+
+
+
+
+        
 
 
         pass
