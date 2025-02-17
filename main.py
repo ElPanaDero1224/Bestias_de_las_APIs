@@ -443,6 +443,8 @@ async def prueba():
             matricula AS m ON m.persona_id = per.id
         WHERE 
             p.concepto LIKE '%CUOTA DE RECUPERACION%'
+            AND p.concepto NOT LIKE '%(2 DE 3)%'  -- Excluir pagos parciales
+            AND p.concepto NOT LIKE '%(3 DE 3)%' 
         GROUP BY 
             turno, ruta, p.periodo_id, p.nombre_carrera;
         """
