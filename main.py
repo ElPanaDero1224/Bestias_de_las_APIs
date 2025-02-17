@@ -321,6 +321,8 @@ async def nuevos_ingresos():
         return resultados
 
 
+#Todavía no sabemos para que se utiliza.
+
 @app.get('/egresados_totales')
 async def prueba():
     async with database.transaction():
@@ -399,23 +401,73 @@ async def titulados():
 
 
 
-
-
-
-
-
-
-        
-
-
-        pass
-
 @app.get('/transporte_solicitudes')
 async def prueba():
     async with database.transaction():
-        #4,5,7,8,20
+        # Obtener los periodos
+        periodos_query = "SELECT id, descripcion FROM periodo"
+        periodos = await database.fetch_all(periodos_query)
 
+        # Consulta principal
+        consulta = """
+        SELECT 
+            p.nombre_carrera, 
+            p.periodo_id,
+            COALESCE(
+                CASE 
+                    WHEN p.concepto LIKE '%Nocturno%' THEN 'Nocturno'
+                    WHEN p.concepto LIKE '%Matutino%' THEN 'Matutino'
+                    WHEN p.concepto LIKE '%Vespertino%' THEN 'Vespertino'
+                END, 
+                'Desconocido'
+            ) AS turno,
+            COALESCE(
+                CASE 
+                    WHEN p.concepto LIKE '%LOMA - PROL. BERNARDO QUINTANA%' THEN 'Ruta 4'
+                    WHEN p.concepto LIKE '%AV. DE LA LUZ VESPERTINO%' THEN 'Ruta 1'
+                    WHEN p.concepto LIKE '%GOMEZ MORIN%' THEN 'Ruta 2'
+                    WHEN p.concepto LIKE '%PASEO CONSTITUYENTES%' THEN 'Ruta 3'
+                    WHEN p.concepto LIKE '%PIE DE LA CUESTA%' THEN 'Ruta 5'
+                    WHEN p.concepto LIKE '%LIBRAMIENTO SUR PONIENTE%' THEN 'Ruta 1'
+                END, 
+                'Desconocido'
+            ) AS ruta,
+            COUNT(CASE WHEN per.sexo = 'M' THEN 1 END) AS hombres,
+            COUNT(CASE WHEN per.sexo = 'F' THEN 1 END) AS mujeres,
+            COUNT(*) AS total
+        FROM 
+            pago AS p
+        LEFT JOIN 
+            persona AS per ON p.persona_id = per.id
+        LEFT JOIN 
+            matricula AS m ON m.persona_id = per.id
+        WHERE 
+            p.concepto LIKE '%CUOTA DE RECUPERACION%'
+        GROUP BY 
+            turno, ruta, p.periodo_id, p.nombre_carrera;
+        """
 
+        # Ejecutar la consulta principal
+        resultados_query = await database.fetch_all(consulta)
+
+        # Procesar los resultados
+        resultados = []
+        for row in resultados_query:
+            periodo_id = row["periodo_id"]
+            # Buscar la descripción del período correspondiente
+            periodo = next((p["descripcion"] for p in periodos if p["id"] == periodo_id), "Desconocido")
+
+            resultados.append({
+                "hombres": row["hombres"],
+                "mujeres": row["mujeres"],
+                "seleccionados": row["total"],
+                "carrera": row["nombre_carrera"],  # Corregido: usar nombre_carrera en lugar de cuatrimestre
+                "ruta": row["ruta"],
+                "turno": row["turno"],
+                "cuatrimestre": periodo  # Solo la descripción del período
+            })
+        
+        return resultados
         pass
 
 @app.get('/rutas')
