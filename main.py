@@ -535,7 +535,7 @@ async def prueba():
 
             resultados.append({
                 "lugares_disp": lugares_disponibles,
-                "seleccionados": row["total"],
+                "pagados": row["total"],
                 "ruta": row["ruta"],
                 "turno": row["turno"],
                 "cuatrimestre": periodo  # Solo la descripción del período
