@@ -260,6 +260,57 @@ async def prueba():
         
         return resultados
 
+@app.get('/egresadostotales')
+async def prueba():
+    async with database.transaction():
+        # Consulta para obtener las carreras (incluyendo nombre_corto si es necesario)
+        carreras_query = "SELECT id, nombre_oficial, nombre_corto FROM carrera"  # Asegúrate de incluir nombre_corto
+        carreras = await database.fetch_all(carreras_query)
+        
+        # Consulta para obtener los egresados por periodo
+        consulta = """
+        SELECT c.id as carrera, YEAR(e.fecha_titulacion) as anio,
+        CASE 
+        WHEN MONTH(e.fecha_titulacion) BETWEEN 1 AND 4 THEN 'ENE-ABR'
+        WHEN MONTH(e.fecha_titulacion) BETWEEN 5 AND 8 THEN 'MAY-AGO'
+        WHEN MONTH(e.fecha_titulacion) BETWEEN 9 AND 12 THEN 'SEP-DIC'
+        END AS periodo,  -- Nombre del periodo
+        SUM(CASE WHEN p.sexo = 'F' THEN 1 ELSE 0 END) AS mujeres,
+        SUM(CASE WHEN p.sexo = 'M' THEN 1 ELSE 0 END) AS hombres
+        FROM egresado AS e
+        LEFT JOIN matricula AS m ON e.matricula_id = m.id
+        JOIN persona AS p ON m.persona_id = p.id
+        JOIN plan_estudio AS pl ON pl.id = m.plan_estudio_id
+        JOIN carrera AS c ON c.id = pl.carrera_id
+        WHERE m.estado = 'E' AND e.fecha_titulacion IS NOT NULL
+        GROUP BY carrera, c.id, anio, periodo;  -- Agrupa por periodo
+        """
+        resultados_query = await database.fetch_all(consulta)
+        
+        # Construir la lista de resultados
+        resultados = []
+        for row in resultados_query:
+            carrera_id = row["carrera"]  # Usamos "carrera" en lugar de "carrera_id"
+            
+            # Buscar la carrera correspondiente en la lista de carreras
+            carrera = next((c for c in carreras if c["id"] == carrera_id), None)
+            nombre_carrera = carrera['nombre_oficial'] if carrera else "Carrera no encontrada"
+            
+            # Formatear el nombre de la carrera (si es necesario)
+            if carrera and 'nombre_corto' in carrera and carrera['nombre_corto']:
+                nombre_carrera = carrera['nombre_corto'].lower().capitalize()
+            
+            resultados.append({
+                "carrera": nombre_carrera,  # Usamos el nombre formateado de la carrera
+                "anio": row["anio"],
+                "periodo": row["periodo"],  # Usamos 'periodo' en lugar de 'cuatrimestre'
+                "hombres": row["hombres"],
+                "mujeres": row["mujeres"],
+                "egresados": row["hombres"] + row["mujeres"]  # Calculamos el total de egresados
+            })
+        
+        return resultados
+
 @app.get('/nuevosIngresos')
 async def nuevos_ingresos():
     async with database.transaction():
