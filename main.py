@@ -40,19 +40,21 @@ async def shutdown():
 
 
 
+async def get_periodos():
+    return await database.fetch_all("SELECT id, descripcion FROM periodo")
+
+async def get_carreras():
+    return await database.fetch_all("SELECT id, nombre_oficial, nombre_corto FROM carrera")
+
 
 
 
 @app.get('/ingresos')
 async def prueba():
     async with database.transaction():
-        # Consulta para obtener los periodos
-        periodos_query = "SELECT id, descripcion FROM periodo"
-        periodos = await database.fetch_all(periodos_query)
 
-        # Consulta para obtener las carreras
-        carreras_query = "SELECT id, nombre_corto FROM carrera"
-        carreras = await database.fetch_all(carreras_query)
+        periodos = await get_periodos()
+        carreras = await get_carreras()
 
         # Consulta optimizada para obtener los datos de aspirantes agrupados por periodo y carrera
         resultados_query = """
@@ -100,13 +102,9 @@ async def prueba():
 @app.get('/equivalencias')
 async def prueba():
     async with database.transaction():
-        # Consulta para obtener los periodos
-        periodos_query = "SELECT id, descripcion FROM periodo"
-        periodos = await database.fetch_all(periodos_query)
-
-        # Consulta para obtener las carreras
-        carreras_query = "SELECT nombre_corto FROM carrera"
-        carreras = await database.fetch_all(carreras_query)
+    
+        periodos = await get_periodos()
+        carreras = await get_carreras()
 
         # Consulta principal para obtener los datos de los pagos
         resultado_query = """
@@ -150,9 +148,8 @@ async def prueba():
 @app.get('/maestrias')
 async def prueba():
     async with database.transaction():
-         # Consulta para obtener los periodos
-        periodos_query = "SELECT id, descripcion FROM periodo"
-        periodos = await database.fetch_all(periodos_query)
+
+        periodos = await get_periodos()
 
         # Consulta para obtener las carreras
         carreras_query = "SELECT id, nombre_oficial FROM carrera WHERE nombre_oficial LIKE '%maestria%'"
@@ -208,9 +205,9 @@ async def prueba():
 @app.get('/egresados')
 async def prueba():
     async with database.transaction():
-        # Consulta para obtener las carreras (incluyendo nombre_corto si es necesario)
-        carreras_query = "SELECT id, nombre_oficial, nombre_corto FROM carrera"  # Asegúrate de incluir nombre_corto
-        carreras = await database.fetch_all(carreras_query)
+
+
+        carreras = await get_carreras()
         
         # Consulta para obtener los egresados por periodo
         consulta = """
@@ -263,9 +260,8 @@ async def prueba():
 @app.get('/egresadostotales')
 async def prueba():
     async with database.transaction():
-        # Consulta para obtener las carreras (incluyendo nombre_corto si es necesario)
-        carreras_query = "SELECT id, nombre_oficial, nombre_corto FROM carrera"  # Asegúrate de incluir nombre_corto
-        carreras = await database.fetch_all(carreras_query)
+
+        carreras = await get_carreras()
         
         # Consulta para obtener los egresados por periodo
         consulta = """
@@ -314,10 +310,8 @@ async def prueba():
 @app.get('/nuevosIngresos')
 async def nuevos_ingresos():
     async with database.transaction():
-        # Consulta para obtener las carreras
-        carreras_query = "SELECT id, nombre_oficial, nombre_corto FROM carrera"
-        carreras = await database.fetch_all(carreras_query)
 
+        carreras = await get_carreras()
 
         # Consulta principal para obtener los datos de los aspirantes
         consulta = """
@@ -390,8 +384,8 @@ async def prueba():
 async def titulados():
     async with database.transaction():
         # Consulta para obtener las carreras
-        carreras_query = "SELECT id, nombre_oficial, nombre_corto FROM carrera"
-        carreras = await database.fetch_all(carreras_query)
+
+        carreras = await get_carreras()
 
         # Consulta para obtener los egresados por periodo
         consulta = """
@@ -456,8 +450,8 @@ async def titulados():
 async def prueba():
     async with database.transaction():
         # Obtener los periodos
-        periodos_query = "SELECT id, descripcion FROM periodo"
-        periodos = await database.fetch_all(periodos_query)
+
+        periodos = await get_periodos()
 
         # Consulta principal
         consulta = """
@@ -527,8 +521,8 @@ async def prueba():
 async def prueba():
     async with database.transaction():
         # Consulta para obtener los periodos
-        periodos_query = "SELECT id, descripcion FROM periodo"
-        periodos = await database.fetch_all(periodos_query)
+        
+        periodos = await get_periodos()
 
         # Consulta principal para obtener los resultados de las rutas
         consulta = """
