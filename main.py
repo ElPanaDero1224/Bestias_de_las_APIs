@@ -48,7 +48,6 @@ async def get_carreras():
 
 
 
-
 @app.get('/ingresos')
 async def prueba():
     async with database.transaction():
@@ -520,7 +519,7 @@ async def prueba():
 @app.get('/rutas')
 async def prueba():
     async with database.transaction():
-        # Consulta para obtener los periodos
+
         
         periodos = await get_periodos()
 
