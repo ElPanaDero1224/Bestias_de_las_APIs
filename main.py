@@ -4,7 +4,12 @@
 # pip install databases
 # pip install aiomysql
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from pydantic import BaseModel
+from datetime import datetime, timedelta
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 from database import database
 from sqlalchemy import select, Table, MetaData
 from fastapi import Request
@@ -13,27 +18,126 @@ import time
 
 app = FastAPI()
 
+# Configuración de seguridad
+SECRET_KEY = "tu_clave_secreta"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+# Configuración de contraseñas
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Configuración de OAuth2
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+# Modelo de usuario
+class User(BaseModel):
+    username: str
+    email: str | None = None
+    full_name: str | None = None
+    disabled: bool | None = None
+
+# Modelo de usuario en la base de datos
+class UserInDB(User):
+    hashed_password: str
+
+# Función para verificar la contraseña
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+# Función para obtener el hash de la contraseña
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+# Función para obtener un usuario de la base de datos (simulado)
+def get_user(db, username: str):
+    if username in db:
+        user_dict = db[username]
+        return UserInDB(**user_dict)
+
+# Función para autenticar al usuario
+def authenticate_user(fake_db, username: str, password: str):
+    user = get_user(fake_db, username)
+    if not user:
+        return False
+    if not verify_password(password, user.hashed_password):
+        return False
+    return user
+
+# Función para crear un token de acceso
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+# Base de datos simulada
+fake_users_db = {
+    "admin": {
+        "username": "admin",
+        "full_name": "Admin User",
+        "email": "admin@example.com",
+        "hashed_password": get_password_hash("adminpassword"),
+        "disabled": False,
+    }
+}
+
+# Ruta para obtener el token
+@app.post("/token")
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = authenticate_user(fake_users_db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+# Función para obtener el usuario actual
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+        token_data = TokenData(username=username)
+    except JWTError:
+        raise credentials_exception
+    user = get_user(fake_users_db, username=token_data.username)
+    if user is None:
+        raise credentials_exception
+    return user
+
+# Modelo de datos del token
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    username: str | None = None
+
 # 🚀 Conectar la base de datos cuando la API se inicia
 @app.on_event("startup")
 async def startup():
     app.state.db1_status = False
-
-
     try:
         await database.connect()
         app.state.db1_status = True
     except Exception as e:
         print(f"❌ Error al conectar database: {e}")
-
-from fastapi import FastAPI
-
-
-# Definir una ruta para la raíz (esto es para tener una referencia)
-@app.get("/")
-def read_root():
-    return {"message": "¡Hola, Mundo!"}
-
-
 
 # 🛑 Desconectar la base de datos cuando la API se detiene
 @app.on_event("shutdown")
@@ -41,30 +145,23 @@ async def shutdown():
     if app.state.db1_status:
         await database.disconnect()
 
-#posible funcion para monitoreo, tentativamente no acabado
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Definir una ruta para la raíz (esto es para tener una referencia)
+@app.get("/")
+def read_root():
+    return {"message": "¡Hola, Mundo!"}
 
-@app.middleware("http")
-async def log_performance(request: Request, call_next):
-    start_time = time.time()
-    response = await call_next(request)
-    process_time = time.time() - start_time
-    logger.info(f"Request: {request.url.path} - Time: {process_time}s")
-    return response
-
+# Obtener periodos
 async def get_periodos():
     return await database.fetch_all("SELECT id, descripcion FROM periodo")
 
+# Obtener carreras
 async def get_carreras():
     return await database.fetch_all("SELECT id, nombre_oficial, nombre_corto FROM carrera")
 
-
-
+# Ruta protegida para obtener ingresos
 @app.get('/ingresos')
-async def prueba():
+async def prueba(current_user: User = Depends(get_current_user)):
     async with database.transaction():
-
         periodos = await get_periodos()
         carreras = await get_carreras()
 
@@ -108,7 +205,6 @@ async def prueba():
                 i += 1
 
         return resultados
-
 #ruta para reingresos/bajas
 
 @app.get('/equivalencias')
