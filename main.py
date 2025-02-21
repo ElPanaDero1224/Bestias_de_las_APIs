@@ -7,6 +7,9 @@
 from fastapi import FastAPI
 from database import database
 from sqlalchemy import select, Table, MetaData
+from fastapi import Request
+import logging
+import time
 
 app = FastAPI()
 
@@ -38,7 +41,17 @@ async def shutdown():
     if app.state.db1_status:
         await database.disconnect()
 
+#posible funcion para monitoreo, tentativamente no acabado
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
+@app.middleware("http")
+async def log_performance(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    logger.info(f"Request: {request.url.path} - Time: {process_time}s")
+    return response
 
 async def get_periodos():
     return await database.fetch_all("SELECT id, descripcion FROM periodo")
@@ -586,3 +599,11 @@ async def prueba():
             })
         
         return resultados
+    
+#ruta super sencilla para checar el tiempo de actividad?
+@app.get("/health")
+def health_check():
+    return {"status": "OK"}
+
+
+

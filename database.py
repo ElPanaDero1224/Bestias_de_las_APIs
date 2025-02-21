@@ -2,8 +2,8 @@ from sqlalchemy import create_engine, MetaData
 from databases import Database
 
 # Configura la URL de la base de datos (modifica según tu necesidad)
-#DATABASE_URL = "mysql+aiomysql://root:@localhost:3306/sistemaintegral"
-DATABASE_URL = "mysql+aiomysql://pablo:sala321-@localhost:3306/sistemaintegral"
+DATABASE_URL = "mysql+aiomysql://root:root@localhost:3306/sistemaintegral"
+#DATABASE_URL = "mysql+aiomysql://pablo:sala321-@localhost:3306/sistemaintegral"
 
 
 # Crea el motor de SQLAlchemy y la conexión asíncrona
