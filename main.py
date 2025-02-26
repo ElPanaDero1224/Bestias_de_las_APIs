@@ -151,7 +151,7 @@ async def prueba(current_user: User = Depends(get_current_user)):
 #ruta para reingresos/bajas
 
 @app.get('/equivalencias')
-async def prueba():
+async def prueba(current_user: User = Depends(get_current_user)):
     async with database.transaction():
     
         periodos = await get_periodos()
@@ -197,7 +197,7 @@ async def prueba():
         return resultados
 
 @app.get('/maestrias')
-async def prueba():
+async def prueba(current_user: User = Depends(get_current_user)):
     async with database.transaction():
 
         periodos = await get_periodos()
@@ -254,7 +254,7 @@ async def prueba():
 #carreras_query = "SELECT id, nombre_oficial FROM carrera WHERE nombre_oficial LIKE '%maestria%'"
 
 @app.get('/egresados')
-async def prueba():
+async def prueba(current_user: User = Depends(get_current_user)):
     async with database.transaction():
 
 
@@ -309,7 +309,7 @@ async def prueba():
         return resultados
 
 @app.get('/egresadostotales')
-async def prueba():
+async def prueba(current_user: User = Depends(get_current_user)):
     async with database.transaction():
 
         carreras = await get_carreras()
@@ -359,7 +359,7 @@ async def prueba():
         return resultados
 
 @app.get('/nuevosIngresos')
-async def nuevos_ingresos():
+async def nuevos_ingresos(current_user: User = Depends(get_current_user)):
     async with database.transaction():
 
         carreras = await get_carreras()
@@ -420,7 +420,7 @@ async def nuevos_ingresos():
 #Todavía no sabemos para que se utiliza.
 
 @app.get('/egresados_totales')
-async def prueba():
+async def prueba(current_user: User = Depends(get_current_user)):
     async with database.transaction():
         #4,5,7,8,20
 
@@ -432,7 +432,7 @@ async def prueba():
 
 
 @app.get('/titulados')
-async def titulados():
+async def titulados(current_user: User = Depends(get_current_user)):
     async with database.transaction():
         # Consulta para obtener las carreras
 
@@ -498,7 +498,7 @@ async def titulados():
 
 
 @app.get('/transporte_solicitudes')
-async def prueba():
+async def prueba(current_user: User = Depends(get_current_user)):
     async with database.transaction():
         # Obtener los periodos
 
@@ -569,7 +569,7 @@ async def prueba():
 
 
 @app.get('/rutas')
-async def prueba():
+async def rutas(current_user: User = Depends(get_current_user)):
     async with database.transaction():
 
         
