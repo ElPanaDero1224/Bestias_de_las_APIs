@@ -8,10 +8,11 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
+from decouple import config
 
 # Configuración de seguridad
-SECRET_KEY = "tu_clave_secreta"
-ALGORITHM = "HS256"
+SECRET_KEY = config("SECRET")
+ALGORITHM = config("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 # Configuración de contraseñas
@@ -69,10 +70,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 # Base de datos simulada para obtener el usuario y la contraseñayyy
 fake_users_db = {
     "admin": {
-        "username": "admin",
-        "full_name": "Admin User",
-        "email": "admin@example.com",
-        "hashed_password": get_password_hash("adminpassword"),
+        "username": config("USER"),
+        "full_name": config("NAME_USER"),
+        "email": config("EMAIL"),
+        "hashed_password": get_password_hash(config("PASSWORD")),
         "disabled": False,
     }
 }

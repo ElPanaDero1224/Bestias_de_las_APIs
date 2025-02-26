@@ -13,6 +13,7 @@ from sqlalchemy import select, Table, MetaData
 from fastapi.middleware.cors import CORSMiddleware
 import redis
 from itsdangerous import URLSafeTimedSerializer
+from decouple import config
 from security import (
     SECRET_KEY,
     ALGORITHM,
@@ -33,7 +34,7 @@ from security import (
 
 app = FastAPI()
 
-SECRET_KEY = "secret"
+SECRET_KEY = config("SECRET_KEY")
 serializer = URLSafeTimedSerializer(SECRET_KEY)
 
 def generate_csrf_token():
