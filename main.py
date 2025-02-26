@@ -6,9 +6,13 @@
 
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import Request
 from datetime import datetime, timedelta
 from database import database
 from sqlalchemy import select, Table, MetaData
+from fastapi.middleware.cors import CORSMiddleware
+import redis
+from itsdangerous import URLSafeTimedSerializer
 from security import (
     SECRET_KEY,
     ALGORITHM,
@@ -28,6 +32,29 @@ from security import (
 )
 
 app = FastAPI()
+
+SECRET_KEY = "secret"
+serializer = URLSafeTimedSerializer(SECRET_KEY)
+
+def generate_csrf_token():
+    return serializer.dumps("csrf_token")
+
+def validate_csrf_token(token: str):
+    try:
+        serializer.loads(token, max_age=3600)  # El token expira en 1 hora
+        return True
+    except:
+        return False
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_headers=["*"],  # Permite "X-CSRF-Token"
+)
+
+@app.get("/get-csrf-token")
+async def get_csrf_token():
+    csrf_token = generate_csrf_token()
+    return {"csrf_token": csrf_token}
 
 @app.post("/token")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
