@@ -306,24 +306,20 @@ def egresadostotales():
         })
     
     return resultados
-
-
 @app.get('/titulados')
 def titulados():
     resultados = []
     
     with engine.begin() as conn:
-        # Obtener carreras
         carreras = conn.execute(
             text("SELECT id, nombre_oficial, nombre_corto FROM carrera")
         ).mappings().fetchall()
         
-        # Consulta principal
         resultados_query = conn.execute(text("""
             SELECT 
                 c.id AS carrera_id, 
                 m.generacion,
-                e.fecha_titulacion AS fecha_titulacion,
+                DATE(e.fecha_titulacion) AS fecha_titulacion,  # Asegurar formato DATE
                 CASE 
                     WHEN MONTH(e.fecha_titulacion) BETWEEN 1 AND 4 THEN 'ENE-ABR'
                     WHEN MONTH(e.fecha_titulacion) BETWEEN 5 AND 8 THEN 'MAY-AGO'
@@ -341,15 +337,25 @@ def titulados():
             GROUP BY c.id, m.generacion, e.fecha_titulacion, cuatrimestre
         """)).mappings().fetchall()
 
-    # Procesar resultados
     for row in resultados_query:
         carrera = next((c for c in carreras if c["id"] == row["carrera_id"]), None)
         nombre = carrera["nombre_corto"].lower().capitalize() if carrera and carrera["nombre_corto"] else carrera["nombre_oficial"] if carrera else "Desconocido"
         
+        # Convertir string a datetime y formatear
+        fecha_raw = row["fecha_titulacion"]
+        fecha_formateada = None
+        
+        if fecha_raw:
+            try:
+                fecha_obj = datetime.strptime(str(fecha_raw), "%Y-%m-%d")
+                fecha_formateada = fecha_obj.strftime("%Y-%m-%d")
+            except ValueError:
+                fecha_formateada = "Fecha inválida"
+        
         resultados.append({
             "carrera": nombre,
             "generacion": row["generacion"],
-            "fecha_titulacion": row["fecha_titulacion"].strftime("%Y-%m-%d") if row["fecha_titulacion"] else None,
+            "fecha_titulacion": fecha_formateada,
             "cuatrimestre_egreso": row["cuatrimestre"],
             "total": row["total"]
         })
