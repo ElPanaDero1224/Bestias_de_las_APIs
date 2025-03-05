@@ -59,3 +59,48 @@ def ingresos():
             i += 1
 
     return resultados
+
+
+@app.get('/equivalencias')
+def equivalencias():
+    resultados = []
+    
+    with engine.begin() as conn:  # Transacción síncrona
+        # Consultar periodos
+        periodos = conn.execute(text("SELECT id, descripcion FROM periodo")).fetchall()
+        
+        # Consultar carreras
+        carreras = conn.execute(text("SELECT id, nombre_corto FROM carrera")).fetchall()
+        
+        # Consulta principal
+        resultados_db = conn.execute(text("""
+            SELECT 
+                periodo_id,
+                nombre_carrera as carrera,
+                COUNT(*) as total_aspirantes,
+                SUM(CASE WHEN estatus = 3 THEN 1 ELSE 0 END) as examinados,
+                SUM(CASE WHEN estatus = 1 THEN 1 ELSE 0 END) as no_admitidos
+            FROM pago
+            WHERE concepto = 'EQUIVALENCIA, REVALIDACION O TRANSFERENCIA'
+            GROUP BY periodo_id, carrera
+        """)).fetchall()
+
+    # Procesamiento de datos
+    i = 1
+    for row in resultados_db:
+        # Los índices ahora son posicionales: row[0] = periodo_id, row[1] = carrera, etc.
+        periodo = next((p for p in periodos if p[0] == row[0]), None)
+        carrera = next((c for c in carreras if c[1] == row[1]), None)  # Buscar por nombre_corto
+
+        if periodo and carrera:
+            resultados.append({
+                "id": i,
+                "carrera": row[1].lower().capitalize(),  # Usamos directamente el nombre del query
+                "aspirantes": row[2],
+                "examinados": row[3],
+                "no_admitidos": row[4],
+                "periodo": periodo[1]  # periodo[1] = descripcion
+            })
+            i += 1
+
+    return resultados
