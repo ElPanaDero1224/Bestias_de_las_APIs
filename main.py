@@ -151,3 +151,59 @@ def maestrias():
             i += 1
 
     return resultados
+
+
+
+
+@app.get('/egresados')
+def egresados():
+    resultados = []
+    
+    with engine.begin() as conn:  # Transacción síncrona
+        # Consultar carreras
+        carreras = conn.execute(
+            text("SELECT id, nombre_oficial, nombre_corto FROM carrera")
+        ).mappings().fetchall()
+        
+        # Consulta principal de egresados
+        consulta = """
+            SELECT 
+                c.id as carrera, 
+                m.generacion,
+                YEAR(e.fecha_titulacion) as anio,
+                CASE 
+                    WHEN MONTH(e.fecha_titulacion) BETWEEN 1 AND 4 THEN 'ENE-ABR'
+                    WHEN MONTH(e.fecha_titulacion) BETWEEN 5 AND 8 THEN 'MAY-AGO'
+                    WHEN MONTH(e.fecha_titulacion) BETWEEN 9 AND 12 THEN 'SEP-DIC'
+                END AS periodo,
+                SUM(CASE WHEN p.sexo = 'F' THEN 1 ELSE 0 END) AS mujeres,
+                SUM(CASE WHEN p.sexo = 'M' THEN 1 ELSE 0 END) AS hombres
+            FROM egresado AS e
+            LEFT JOIN matricula AS m ON e.matricula_id = m.id
+            JOIN persona AS p ON m.persona_id = p.id
+            JOIN plan_estudio AS pl ON pl.id = m.plan_estudio_id
+            JOIN carrera AS c ON c.id = pl.carrera_id
+            WHERE m.estado = 'E' AND e.fecha_titulacion IS NOT NULL
+            GROUP BY carrera, m.generacion, c.id, anio, periodo
+        """
+        resultados_query = conn.execute(text(consulta)).mappings().fetchall()
+
+    # Procesar resultados
+    for row in resultados_query:
+        carrera = next((c for c in carreras if c["id"] == row["carrera"]), None)
+        
+        nombre_carrera = carrera['nombre_oficial'] if carrera else "Carrera no encontrada"
+        if carrera and carrera.get('nombre_corto'):
+            nombre_carrera = carrera['nombre_corto'].lower().capitalize()
+
+        resultados.append({
+            "carrera": nombre_carrera,
+            "generacion": row["generacion"],
+            "año_egreso": row["anio"],
+            "cuatrimestre": row["periodo"],
+            "hombres": row["hombres"],
+            "mujeres": row["mujeres"],
+            "egresados": row["hombres"] + row["mujeres"]
+        })
+
+    return resultados
