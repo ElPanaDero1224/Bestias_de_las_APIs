@@ -104,7 +104,7 @@ async def get_carreras():
 
 # Ruta protegida para obtener ingresos
 @app.get('/ingresos')
-async def prueba(current_user: User = Depends(get_current_user)):
+async def prueba():
     async with database.transaction():
         periodos = await get_periodos()
         carreras = await get_carreras()
