@@ -80,6 +80,7 @@ async def startup():
     try:
         await database.connect()
         app.state.db1_status = True
+        print("Si hay conexion we uwu")
     except Exception as e:
         print(f"❌ Error al conectar database: {e}")
 
