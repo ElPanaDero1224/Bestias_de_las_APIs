@@ -18,10 +18,9 @@ def startup():
         print(f"❌ Error de conexión: {str(e)}")
 
 # Ruta de prueba modificada
-@app.get('/prueba')
-def prueba():
+@app.get('/ingresos')
+def ingresos():
     resultados = []
-    
     with engine.begin() as conn:  # Transacción síncrona
         # Consulta periodos
         periodos = conn.execute(text("SELECT id, descripcion FROM periodo")).fetchall()
