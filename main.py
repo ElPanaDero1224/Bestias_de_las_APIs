@@ -103,7 +103,7 @@ async def get_carreras():
 # Definir una ruta para la raíz (esto es para tener una referencia)
 @app.get("/")
 def read_root():
-    valores = get_carreras()
+    valores = database.fetch_all("SELECT id, descripcion FROM periodo")
     return {"message": "¡Hola, Mundo!",
             "prueba": valores}
 
