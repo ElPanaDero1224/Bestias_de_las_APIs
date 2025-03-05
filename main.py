@@ -104,3 +104,50 @@ def equivalencias():
             i += 1
 
     return resultados
+
+
+@app.get('/maestrias')
+def maestrias():
+    resultados = []
+    
+    with engine.begin() as conn:  # Transacción síncrona
+        # Consultar periodos
+        periodos = conn.execute(text("SELECT id, descripcion FROM periodo")).mappings().fetchall()
+        
+        # Consultar carreras de maestría
+        carreras = conn.execute(
+            text("SELECT id, nombre_oficial FROM carrera WHERE nombre_oficial LIKE '%maestria%'")
+        ).mappings().fetchall()
+        
+        # Consulta principal
+        resultados_db = conn.execute(text("""
+            SELECT 
+                periodo_id,
+                primera_opcion as carrera_id,
+                COUNT(*) as total_aspirantes,
+                SUM(CASE WHEN estado = 2 THEN 1 ELSE 0 END) as examinados,
+                SUM(CASE WHEN estado = 3 THEN 1 ELSE 0 END) as admitidos,
+                SUM(CASE WHEN estado = 4 THEN 1 ELSE 0 END) as no_admitidos
+            FROM aspirante
+            GROUP BY periodo_id, primera_opcion
+        """)).mappings().fetchall()
+
+    # Procesamiento de datos
+    i = 1
+    for row in resultados_db:
+        # Buscar relaciones usando diccionarios
+        periodo = next((p for p in periodos if p["id"] == row["periodo_id"]), None)
+        carrera = next((c for c in carreras if c["id"] == row["carrera_id"]), None)
+
+        if periodo and carrera:
+            resultados.append({
+                "id": i,
+                "carrera": carrera["nombre_oficial"].lower().capitalize(),
+                "aspirantes": row["total_aspirantes"],
+                "examinados": row["examinados"],
+                "no_admitidos": row["no_admitidos"],
+                "periodo": periodo["descripcion"]
+            })
+            i += 1
+
+    return resultados
