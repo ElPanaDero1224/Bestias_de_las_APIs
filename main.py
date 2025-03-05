@@ -102,8 +102,8 @@ async def get_carreras():
 
 # Definir una ruta para la raíz (esto es para tener una referencia)
 @app.get("/")
-def read_root():
-    valores = database.fetch_all("SELECT id, descripcion FROM periodo")
+async def read_root():
+    valores = await get_carreras()  # Usamos await para obtener los datos
     return {"message": "¡Hola, Mundo!",
             "prueba": valores}
 
