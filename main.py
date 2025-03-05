@@ -90,10 +90,7 @@ async def shutdown():
     if app.state.db1_status:
         await database.disconnect()
 
-# Definir una ruta para la raíz (esto es para tener una referencia)
-@app.get("/")
-def read_root():
-    return {"message": "¡Hola, Mundo!"}
+
 
 # Obtener periodos
 async def get_periodos():
@@ -102,6 +99,14 @@ async def get_periodos():
 # Obtener carreras
 async def get_carreras():
     return await database.fetch_all("SELECT id, nombre_oficial, nombre_corto FROM carrera")
+
+# Definir una ruta para la raíz (esto es para tener una referencia)
+@app.get("/")
+def read_root():
+    valores = get_carreras()
+    return {"message": "¡Hola, Mundo!",
+            "prueba": valores}
+
 
 # Ruta protegida para obtener ingresos
 @app.get('/ingresos')
