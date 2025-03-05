@@ -3,12 +3,12 @@
 # pip install asyncmy
 # pip install databases
 # pip install aiomysql
-from sqlalchemy.sql import text
+
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi import Request
 from datetime import datetime, timedelta
-from database import engine
+from database import database
 from sqlalchemy import select, Table, MetaData
 from fastapi.middleware.cors import CORSMiddleware
 import redis
@@ -75,45 +75,33 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
 # 🚀 Conectar la base de datos cuando la API se inicia
 @app.on_event("startup")
-def startup():
+async def startup():
+    app.state.db1_status = False
     try:
-        # Intenta establecer una conexión y ejecutar una consulta simple
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))  # Consulta de prueba
+        await database.connect()
         app.state.db1_status = True
-        print("✅ ¡Conexión exitosa con la base de datos!")  # Mensaje positivo
+        print("Si hay conexion we uwu")
     except Exception as e:
-        app.state.db1_status = False
-        print(f"❌ ¡Error crítico! No se pudo conectar a la base de datos: {str(e)}")  # Error claro
-        print("⚠️ Verifica: Credenciales, red, o si MySQL está activo.")
+        print(f"❌ Error al conectar database: {e}")
 
 # 🛑 Desconectar la base de datos cuando la API se detiene
 @app.on_event("shutdown")
-def shutdown():
-    if engine:
-        engine.dispose()  # Cierra todas las conexiones del pool
-        print("🔌 Conexión con la base de datos cerrada correctamente.")
+async def shutdown():
+    if app.state.db1_status:
+        await database.disconnect()
 
-
-
-def get_periodos():
-    with engine.connect() as conn:
-        result = conn.execute(text("SELECT id, descripcion FROM periodo"))
-        return [dict(row) for row in result]
-
-# Obtener carreras (síncrono)
-def get_carreras():
-    with engine.connect() as conn:
-        result = conn.execute(text("SELECT id, nombre_oficial, nombre_corto FROM carrera"))
-        return [dict(row) for row in result]
-
-# Ruta síncrona
+# Definir una ruta para la raíz (esto es para tener una referencia)
 @app.get("/")
 def read_root():
-    valores = get_carreras()  # Llamada directa (sin await)
-    return {"message": "¡Hola, Mundo!", "prueba": valores}
+    return {"message": "¡Hola, Mundo!"}
 
+# Obtener periodos
+async def get_periodos():
+    return await database.fetch_all("SELECT id, descripcion FROM periodo")
 
+# Obtener carreras
+async def get_carreras():
+    return await database.fetch_all("SELECT id, nombre_oficial, nombre_corto FROM carrera")
 
 # Ruta protegida para obtener ingresos
 @app.get('/ingresos')
