@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from database import engine
 from sqlalchemy import text
+from datetime import datetime  # Import necesario aquí
 
 app = FastAPI()
 
@@ -306,6 +307,9 @@ def egresadostotales():
         })
     
     return resultados
+
+
+
 @app.get('/titulados')
 def titulados():
     resultados = []
@@ -319,7 +323,7 @@ def titulados():
             SELECT 
                 c.id AS carrera_id, 
                 m.generacion,
-                DATE(e.fecha_titulacion) AS fecha_titulacion,  # Asegurar formato DATE
+                DATE(e.fecha_titulacion) AS fecha_titulacion,
                 CASE 
                     WHEN MONTH(e.fecha_titulacion) BETWEEN 1 AND 4 THEN 'ENE-ABR'
                     WHEN MONTH(e.fecha_titulacion) BETWEEN 5 AND 8 THEN 'MAY-AGO'
@@ -341,7 +345,6 @@ def titulados():
         carrera = next((c for c in carreras if c["id"] == row["carrera_id"]), None)
         nombre = carrera["nombre_corto"].lower().capitalize() if carrera and carrera["nombre_corto"] else carrera["nombre_oficial"] if carrera else "Desconocido"
         
-        # Convertir string a datetime y formatear
         fecha_raw = row["fecha_titulacion"]
         fecha_formateada = None
         
