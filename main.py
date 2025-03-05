@@ -1,56 +1,36 @@
-# Instalaciones necesarias:
-# pip install fastapi uvicorn sqlalchemy asyncmy 
-
 from fastapi import FastAPI
-from database import database
-from sqlalchemy import select, Table, MetaData
+from database import engine
+from sqlalchemy import text
 
 app = FastAPI()
 
-# 🚀 Conectar la base de datos cuando la API se inicia
+# 🚀 Evento de inicio
 @app.on_event("startup")
-async def startup():
+def startup():
     app.state.db1_status = False
-
-
     try:
-        await database.connect()
+        # Prueba de conexión
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
         app.state.db1_status = True
+        print("✅ Conexión exitosa a MySQL 5.1")
     except Exception as e:
-        print(f"❌ Error al conectar database: {e}")
+        print(f"❌ Error de conexión: {str(e)}")
 
-from fastapi import FastAPI
-
-
-# Definir una ruta para la raíz
-@app.get("/")
-def read_root():
-    return {"message": "¡Hola, Mundo!"}
-
-
-
-# 🛑 Desconectar la base de datos cuando la API se detiene
-@app.on_event("shutdown")
-async def shutdown():
-    if app.state.db1_status:
-        await database.disconnect()
-    
-
-
-
+# Ruta de prueba modificada
 @app.get('/prueba')
-async def prueba():
-    async with database.transaction():
-        # Consulta para obtener los periodos
-        periodos_query = "SELECT id, descripcion FROM periodo"
-        periodos = await database.fetch_all(periodos_query)
-
-        # Consulta para obtener las carreras
-        carreras_query = "SELECT id, nombre_corto FROM carrera"
-        carreras = await database.fetch_all(carreras_query)
-
-        # Consulta optimizada para obtener los datos de aspirantes agrupados por periodo y carrera
-        resultados_query = """
+def prueba():
+    resultados = []
+    
+    with engine.begin() as conn:  # Transacción síncrona
+        # Consulta periodos
+        periodos = conn.execute(text("SELECT id, descripcion FROM periodo")).fetchall()
+        
+        # Consulta carreras
+        carreras = conn.execute(text("SELECT id, nombre_corto FROM carrera")).fetchall()
+        
+        # Consulta principal
+        resultados_db = conn.execute(text("""
             SELECT 
                 periodo_id,
                 primera_opcion as carrera_id,
@@ -60,32 +40,23 @@ async def prueba():
                 SUM(CASE WHEN estado = 4 THEN 1 ELSE 0 END) as no_admitidos
             FROM aspirante
             GROUP BY periodo_id, primera_opcion
-        """
-        resultados_db = await database.fetch_all(resultados_query)
+        """)).fetchall()
 
-        resultados = []
+    # Procesamiento de datos
+    i = 1
+    for row in resultados_db:
+        periodo = next((p for p in periodos if p[0] == row[0]), None)
+        carrera = next((c for c in carreras if c[0] == row[1]), None)
+        
+        if periodo and carrera:
+            resultados.append({
+                "id": i,
+                "carrera": carrera[1].lower().capitalize(),
+                "aspirantes": row[2],
+                "examinados": row[3],
+                "no_admitidos": row[5],  # Ajustado al índice correcto
+                "periodo": periodo[1]
+            })
+            i += 1
 
-        i = 1
-
-        # Procesar los resultados de la consulta
-        for row in resultados_db:
-            periodo_id = row["periodo_id"]
-            carrera_id = row["carrera_id"]
-
-            # Obtener descripciones de periodo y carrera
-            periodo = next((p for p in periodos if p["id"] == periodo_id), None)
-            carrera = next((c for c in carreras if c["id"] == carrera_id), None)
-
-            if periodo and carrera:
-                nombre_carrera = carrera["nombre_corto"].lower().capitalize()
-                resultados.append({
-                    "id": i,
-                    "carrera": nombre_carrera,
-                    "aspirantes": row["total_aspirantes"],
-                    "examinados": row["examinados"],
-                    "no_admitidos": row["no_admitidos"],
-                    "periodo": periodo["descripcion"]
-                })
-                i += 1
-
-        return resultados
+    return resultados
