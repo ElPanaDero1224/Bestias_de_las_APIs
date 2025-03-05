@@ -207,3 +207,102 @@ def egresados():
         })
 
     return resultados
+
+
+
+@app.get('/nuevosIngresos')
+def nuevos_ingresos():
+    resultados = []
+    
+    with engine.begin() as conn:
+        # Obtener carreras
+        carreras = conn.execute(
+            text("SELECT id, nombre_oficial FROM carrera")
+        ).mappings().fetchall()
+        
+        # Consulta principal
+        resultados_query = conn.execute(text("""
+            SELECT 
+                asp.primera_opcion as carrera_id,
+                asp.periodo_id AS IDperiodo,
+                per.sexo,
+                p.descripcion AS periodo,
+                SUM(CASE WHEN m.matricula IS NOT NULL THEN 1 ELSE 0 END) AS ingresados,
+                COUNT(asp.id) AS total_aspirantes,
+                SUM(CASE WHEN asp.estado = 3 THEN 1 ELSE 0 END) AS admitidos,
+                CASE
+                    WHEN p.descripcion LIKE '%PRIMER%' THEN '1er Proceso'
+                    WHEN p.descripcion LIKE '%SEGUNDA%' THEN '2do Proceso'
+                    WHEN p.descripcion LIKE '%TERCER%' THEN '3er Proceso'
+                    WHEN p.descripcion LIKE '%CUARTA%' THEN '4to Proceso'
+                    ELSE '1er Proceso'
+                END AS proceso
+            FROM aspirante AS asp
+            JOIN persona AS per ON asp.persona_id = per.id
+            LEFT JOIN matricula AS m ON m.persona_id = per.id
+            JOIN periodo AS p ON p.id = asp.periodo_id
+            GROUP BY asp.periodo_id, per.sexo, p.descripcion, asp.primera_opcion
+        """)).mappings().fetchall()
+
+    # Procesar resultados
+    for row in resultados_query:
+        carrera = next((c for c in carreras if c["id"] == row["carrera_id"]), None)
+        sexo = "Masculino" if row["sexo"] == "M" else "Femenino"
+        
+        resultados.append({
+            "admitidos": row["admitidos"],
+            "carrera": carrera["nombre_oficial"] if carrera else "Desconocido",
+            "inscritos": row["total_aspirantes"],
+            "periodo": row["periodo"],
+            "proceso": row["proceso"],
+            "sexo": sexo,
+            "total_ingresos": row["ingresados"]
+        })
+    
+    return resultados
+
+
+@app.get('/egresadostotales')
+def egresadostotales():
+    resultados = []
+    
+    with engine.begin() as conn:
+        # Obtener carreras
+        carreras = conn.execute(
+            text("SELECT id, nombre_oficial, nombre_corto FROM carrera")
+        ).mappings().fetchall()
+        
+        # Consulta principal
+        resultados_query = conn.execute(text("""
+            SELECT c.id as carrera, YEAR(e.fecha_titulacion) as anio,
+            CASE 
+                WHEN MONTH(e.fecha_titulacion) BETWEEN 1 AND 4 THEN 'ENE-ABR'
+                WHEN MONTH(e.fecha_titulacion) BETWEEN 5 AND 8 THEN 'MAY-AGO'
+                WHEN MONTH(e.fecha_titulacion) BETWEEN 9 AND 12 THEN 'SEP-DIC'
+            END AS periodo,
+            SUM(CASE WHEN p.sexo = 'F' THEN 1 ELSE 0 END) AS mujeres,
+            SUM(CASE WHEN p.sexo = 'M' THEN 1 ELSE 0 END) AS hombres
+            FROM egresado AS e
+            LEFT JOIN matricula AS m ON e.matricula_id = m.id
+            JOIN persona AS p ON m.persona_id = p.id
+            JOIN plan_estudio AS pl ON pl.id = m.plan_estudio_id
+            JOIN carrera AS c ON c.id = pl.carrera_id
+            WHERE m.estado = 'E' AND e.fecha_titulacion IS NOT NULL
+            GROUP BY carrera, c.id, anio, periodo
+        """)).mappings().fetchall()
+
+    # Procesar resultados
+    for row in resultados_query:
+        carrera = next((c for c in carreras if c["id"] == row["carrera"]), None)
+        nombre = carrera["nombre_corto"].lower().capitalize() if carrera and carrera["nombre_corto"] else carrera["nombre_oficial"] if carrera else "Desconocido"
+        
+        resultados.append({
+            "carrera": nombre,
+            "anio": row["anio"],
+            "periodo": row["periodo"],
+            "hombres": row["hombres"],
+            "mujeres": row["mujeres"],
+            "egresados": row["hombres"] + row["mujeres"]
+        })
+    
+    return resultados
