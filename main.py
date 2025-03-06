@@ -27,6 +27,45 @@ from security import (
 app = FastAPI()
 
 
+
+SECRET_KEY = config("SECRET_KEY")
+serializer = URLSafeTimedSerializer(SECRET_KEY)
+
+def generate_csrf_token():
+    return serializer.dumps("csrf_token")
+
+def validate_csrf_token(token: str):
+    try:
+        serializer.loads(token, max_age=3600)  # El token expira en 1 hora
+        return True
+    except:
+        return False
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_headers=["*"],  # Permite "X-CSRF-Token"
+)
+
+@app.get("/get-csrf-token")
+async def get_csrf_token():
+    csrf_token = generate_csrf_token()
+    return {"csrf_token": csrf_token}
+
+@app.post("/token")
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = authenticate_user(fake_users_db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
 # 🚀 Evento de inicio
 @app.on_event("startup")
 def startup():
