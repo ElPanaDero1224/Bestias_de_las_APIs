@@ -131,7 +131,7 @@ def ingresos():
 
 
 @app.get('/equivalencias')
-def equivalencias(current_user: User = Depends(get_current_user)):
+def equivalencias():
     resultados = []
     
     with engine.begin() as conn:  # Transacción síncrona
