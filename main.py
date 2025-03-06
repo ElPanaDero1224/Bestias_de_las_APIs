@@ -23,6 +23,13 @@ def startup():
     except Exception as e:
         print(f"❌ Error de conexión: {str(e)}")
 
+
+# Ruta de prueba modificada
+@app.get('/')
+def ingresos():
+    return 'Hola mundo'
+
+
 # Ruta de prueba modificada
 @app.get('/ingresos')
 def ingresos():
