@@ -18,7 +18,6 @@ from security import (
     get_user,
     authenticate_user,
     create_access_token,
-    fake_users_db,
     get_current_user,
     Token,
     TokenData,
