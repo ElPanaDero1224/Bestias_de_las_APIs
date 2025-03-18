@@ -1,5 +1,3 @@
-# security.py
-
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -10,13 +8,20 @@ from passlib.context import CryptContext
 from pydantic import BaseModel
 from decouple import config
 
-# Configuración de seguridad
+# Cargar variables desde .env
 SECRET_KEY = config("SECRET")
 ALGORITHM = config("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-# Contexto de cifrado para contraseñas
+# Credenciales almacenadas en el archivo .env
+USER = config("USER")
+PASSWORD = config("PASSWORD")  # Contraseña almacenada sin hash (debe ser hasheada al inicio)
+NAME_USER = config("NAME_USER")
+EMAIL = config("EMAIL")
+
+# Hashear la contraseña al cargar la aplicación
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+HASHED_PASSWORD = pwd_context.hash(PASSWORD)  # Se almacena la versión hasheada
 
 # Esquema OAuth2 para manejar tokens
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")

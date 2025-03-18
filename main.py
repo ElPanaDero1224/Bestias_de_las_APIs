@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from decouple import config
 from itsdangerous import URLSafeTimedSerializer
-from security import get_current_user, create_access_token, TokenData, ACCESS_TOKEN_EXPIRE_MINUTES
+from security import create_access_token, verify_password, HASHED_PASSWORD, USER, ACCESS_TOKEN_EXPIRE_MINUTES
 
 
 app = FastAPI()
@@ -14,9 +14,8 @@ app = FastAPI()
 
 @app.post("/token")
 def login_for_access_token(username: str, password: str):
-    # Aquí deberías verificar las credenciales del usuario en tu base de datos
-    # Esto es solo un ejemplo, asegúrate de implementar la lógica de autenticación real
-    if username != "admin" or password != "secret":
+    # Verificar credenciales obtenidas desde el .env
+    if username != USER or not verify_password(password, HASHED_PASSWORD):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -27,7 +26,6 @@ def login_for_access_token(username: str, password: str):
         data={"sub": username}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
-
 
 
 SECRET_KEY = config("SECRET_KEY")
