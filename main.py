@@ -99,7 +99,7 @@ def ingresos():
 
 # Ruta de prueba modificada
 @app.get('/ingresos')
-def ingresos(current_user: User = Depends(get_current_user)):
+def ingresos():
     resultados = []
     with engine.begin() as conn:  # Transacción síncrona
         # Consulta periodos
