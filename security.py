@@ -1,10 +1,8 @@
-# security.py
-
 from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
@@ -67,7 +65,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-# Base de datos simulada para obtener el usuario y la contraseñayyy
+# Base de datos simulada para obtener el usuario y la contraseña
 fake_users_db = {
     "admin": {
         "username": config("USER"),
@@ -79,7 +77,7 @@ fake_users_db = {
 }
 
 # Función para obtener el usuario actual
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> UserInDB:
+def get_current_user(token: str = Depends(oauth2_scheme)) -> UserInDB:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
