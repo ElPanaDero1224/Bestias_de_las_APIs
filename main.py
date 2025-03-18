@@ -6,17 +6,32 @@ from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from decouple import config
 from itsdangerous import URLSafeTimedSerializer
-from security import get_current_user, create_access_token, TokenData, ACCESS_TOKEN_EXPIRE_MINUTES
+from security import (
+    SECRET_KEY,
+    ALGORITHM,
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    oauth2_scheme,
+    User,
+    UserInDB,
+    verify_password,
+    get_password_hash,
+    get_user,
+    authenticate_user,
+    create_access_token,
+    fake_users_db,
+    get_current_user,
+    Token,
+    TokenData,
+)
 
 
 app = FastAPI()
 
 
 @app.post("/token")
-def login_for_access_token(username: str, password: str):
-    # Aquí deberías verificar las credenciales del usuario en tu base de datos
-    # Esto es solo un ejemplo, asegúrate de implementar la lógica de autenticación real
-    if username != "admin" or password != "secret":
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = authenticate_user(fake_users_db, form_data.username, form_data.password)
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -24,9 +39,10 @@ def login_for_access_token(username: str, password: str):
         )
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": username}, expires_delta=access_token_expires
+        data={"sub": user.username}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
 
 
 
