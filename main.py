@@ -98,7 +98,7 @@ def ingresos():
 
 # Ruta de prueba modificada
 @app.get('/ingresos')
-def ingresos(current_user: UserInDB = Depends(get_current_user)):
+def ingresos():
     resultados = []
     with engine.begin() as conn:  # Transacción síncrona
         # Consulta periodos
@@ -141,7 +141,7 @@ def ingresos(current_user: UserInDB = Depends(get_current_user)):
 
 
 @app.get('/equivalencias')
-async def equivalencias(current_user: User = Depends(get_current_user)):
+def equivalencias():
     resultados = []
     
     with engine.begin() as conn:  # Transacción síncrona
@@ -186,7 +186,7 @@ async def equivalencias(current_user: User = Depends(get_current_user)):
 
 
 @app.get('/maestrias')
-async def maestrias(current_user: User = Depends(get_current_user)):
+def maestrias():
     resultados = []
     
     with engine.begin() as conn:  # Transacción síncrona
@@ -235,7 +235,7 @@ async def maestrias(current_user: User = Depends(get_current_user)):
 
 
 @app.get('/egresados')
-async def egresados(current_user: User = Depends(get_current_user)):
+def egresados():
     resultados = []
     
     with engine.begin() as conn:  # Transacción síncrona
@@ -290,7 +290,7 @@ async def egresados(current_user: User = Depends(get_current_user)):
 
 
 @app.get('/nuevosIngresos')
-async def nuevos_ingresos(current_user: User = Depends(get_current_user)):
+def nuevos_ingresos():
     resultados = []
     
     with engine.begin() as conn:
@@ -342,7 +342,7 @@ async def nuevos_ingresos(current_user: User = Depends(get_current_user)):
 
 
 @app.get('/egresadostotales')
-async def egresadostotales(current_user: User = Depends(get_current_user)):
+def egresadostotales():
     resultados = []
     
     with engine.begin() as conn:
@@ -389,7 +389,7 @@ async def egresadostotales(current_user: User = Depends(get_current_user)):
 
 
 @app.get('/titulados')
-async def titulados(current_user: User = Depends(get_current_user)):
+def titulados():
     resultados = []
     
     with engine.begin() as conn:
