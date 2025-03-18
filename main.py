@@ -53,6 +53,7 @@ async def get_csrf_token():
 
 @app.post("/token")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    # Autenticar al usuario
     user = authenticate_user(fake_users_db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
@@ -60,11 +61,21 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    
+    # Crear el token de acceso
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+    
+    # Devolver el token junto con un mensaje de confirmación y otros datos útiles
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "message": "Token generated successfully",
+        "username": user.username,
+        "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60  # Tiempo de expiración en segundos
+    }
 
 # 🚀 Evento de inicio
 @app.on_event("startup")
