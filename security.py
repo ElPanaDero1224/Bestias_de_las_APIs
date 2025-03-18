@@ -48,13 +48,13 @@ def get_user(db, username: str) -> Optional[UserInDB]:
     return None
 
 # Función para autenticar al usuario
-def authenticate_user(fake_db, username: str, password: str) -> Optional[UserInDB]:
-    user = get_user(fake_db, username)
-    if not user:
+def authenticate_user(username: str, password: str) -> Optional[UserInDB]:
+    if username != fake_user["username"]:
         return None
-    if not verify_password(password, user.hashed_password):
+    if not verify_password(password, fake_user["hashed_password"]):
         return None
-    return user
+    return UserInDB(**fake_user)
+
 
 # Función para crear un token de acceso
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -68,18 +68,16 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 # Base de datos simulada para obtener el usuario y la contraseñayyy
-fake_users_db = {
-    "admin": {
-        "username": config("USER"),
-        "full_name": config("NAME_USER"),
-        "email": config("EMAIL"),
-        "hashed_password": get_password_hash(config("PASSWORD")),
-        "disabled": False,
-    }
+fake_user = {
+    "username": config("USER"),
+    "full_name": config("NAME_USER"),
+    "email": config("EMAIL"),
+    "hashed_password": pwd_context.hash(config("PASSWORD")),  # Contraseña hasheada
+    "disabled": False,
 }
 
 # Función para obtener el usuario actual
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> UserInDB:
+def get_current_user(token: str = Depends(oauth2_scheme)) -> UserInDB:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -90,10 +88,9 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> UserInDB:
         username: str = payload.get("sub")
         if username is None:
             raise credentials_exception
-        token_data = TokenData(username=username)
     except JWTError:
         raise credentials_exception
-    user = get_user(fake_users_db, username=token_data.username)
+    user = authenticate_user(username, None)
     if user is None:
         raise credentials_exception
     return user

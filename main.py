@@ -52,9 +52,9 @@ async def get_csrf_token():
     return {"csrf_token": csrf_token}
 
 @app.post("/token")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
     # Autenticar al usuario
-    user = authenticate_user(fake_users_db, form_data.username, form_data.password)
+    user = authenticate_user(form_data.username, form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -99,7 +99,7 @@ def ingresos():
 
 # Ruta de prueba modificada
 @app.get('/ingresos')
-def ingresos():
+def ingresos(current_user: UserInDB = Depends(get_current_user)):
     resultados = []
     with engine.begin() as conn:  # Transacción síncrona
         # Consulta periodos
