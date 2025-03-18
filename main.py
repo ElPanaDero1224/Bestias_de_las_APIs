@@ -1,38 +1,34 @@
-# Instalaciones necesarias:
-# pip install fastapi uvicorn sqlalchemy asyncmy 
-# pip install asyncmy
-# pip install databases
-# pip install aiomysql
-
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi import Request
+from database import engine
+from sqlalchemy import text
 from datetime import datetime, timedelta
-from database import database
-from sqlalchemy import select, Table, MetaData
 from fastapi.middleware.cors import CORSMiddleware
-import redis
-from itsdangerous import URLSafeTimedSerializer
 from decouple import config
-from security import (
-    SECRET_KEY,
-    ALGORITHM,
-    ACCESS_TOKEN_EXPIRE_MINUTES,
-    oauth2_scheme,
-    User,
-    UserInDB,
-    verify_password,
-    get_password_hash,
-    get_user,
-    authenticate_user,
-    create_access_token,
-    fake_users_db,
-    get_current_user,
-    Token,
-    TokenData,
-)
+from itsdangerous import URLSafeTimedSerializer
+from security import get_current_user, create_access_token, TokenData, ACCESS_TOKEN_EXPIRE_MINUTES
+
 
 app = FastAPI()
+
+
+@app.post("/token")
+def login_for_access_token(username: str, password: str):
+    # Aquí deberías verificar las credenciales del usuario en tu base de datos
+    # Esto es solo un ejemplo, asegúrate de implementar la lógica de autenticación real
+    if username != "admin" or password != "secret":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
 
 SECRET_KEY = config("SECRET_KEY")
 serializer = URLSafeTimedSerializer(SECRET_KEY)
@@ -57,60 +53,46 @@ async def get_csrf_token():
     csrf_token = generate_csrf_token()
     return {"csrf_token": csrf_token}
 
-@app.post("/token")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = authenticate_user(fake_users_db, form_data.username, form_data.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
+
+#jwl
 
 
-# 🚀 Conectar la base de datos cuando la API se inicia
+
+
+
+# 🚀 Evento de inicio
 @app.on_event("startup")
-async def startup():
+def startup():
     app.state.db1_status = False
     try:
-        await database.connect()
+        # Prueba de conexión
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
         app.state.db1_status = True
+        print("✅ Conexión exitosa a MySQL 5.1")
     except Exception as e:
-        print(f"❌ Error al conectar database: {e}")
+        print(f"❌ Error de conexión: {str(e)}")
 
-# 🛑 Desconectar la base de datos cuando la API se detiene
-@app.on_event("shutdown")
-async def shutdown():
-    if app.state.db1_status:
-        await database.disconnect()
 
-# Definir una ruta para la raíz (esto es para tener una referencia)
-@app.get("/")
-def read_root():
-    return {"message": "¡Hola, Mundo!"}
+# Ruta de prueba modificada
+@app.get('/')
+def ingresos():
+    return 'Hola mundo'
 
-# Obtener periodos
-async def get_periodos():
-    return await database.fetch_all("SELECT id, descripcion FROM periodo")
 
-# Obtener carreras
-async def get_carreras():
-    return await database.fetch_all("SELECT id, nombre_oficial, nombre_corto FROM carrera")
-
-# Ruta protegida para obtener ingresos
+# Ruta de prueba modificada
 @app.get('/ingresos')
-async def prueba(current_user: User = Depends(get_current_user)):
-    async with database.transaction():
-        periodos = await get_periodos()
-        carreras = await get_carreras()
-
-        # Consulta optimizada para obtener los datos de aspirantes agrupados por periodo y carrera
-        resultados_query = """
+def ingresos():
+    resultados = []
+    with engine.begin() as conn:  # Transacción síncrona
+        # Consulta periodos
+        periodos = conn.execute(text("SELECT id, descripcion FROM periodo")).fetchall()
+        
+        # Consulta carreras
+        carreras = conn.execute(text("SELECT id, nombre_corto FROM carrera")).fetchall()
+        
+        # Consulta principal
+        resultados_db = conn.execute(text("""
             SELECT 
                 periodo_id,
                 primera_opcion as carrera_id,
@@ -120,46 +102,41 @@ async def prueba(current_user: User = Depends(get_current_user)):
                 SUM(CASE WHEN estado = 4 THEN 1 ELSE 0 END) as no_admitidos
             FROM aspirante
             GROUP BY periodo_id, primera_opcion
-        """
-        resultados_db = await database.fetch_all(resultados_query)
+        """)).fetchall()
 
-        resultados = []
+    # Procesamiento de datos
+    i = 1
+    for row in resultados_db:
+        periodo = next((p for p in periodos if p[0] == row[0]), None)
+        carrera = next((c for c in carreras if c[0] == row[1]), None)
+        
+        if periodo and carrera:
+            resultados.append({
+                "id": i,
+                "carrera": carrera[1].lower().capitalize(),
+                "aspirantes": row[2],
+                "examinados": row[3],
+                "no_admitidos": row[5],  # Ajustado al índice correcto
+                "periodo": periodo[1]
+            })
+            i += 1
 
-        i = 1
+    return resultados
 
-        # Procesar los resultados de la consulta
-        for row in resultados_db:
-            periodo_id = row["periodo_id"]
-            carrera_id = row["carrera_id"]
-
-            # Obtener descripciones de periodo y carrera
-            periodo = next((p for p in periodos if p["id"] == periodo_id), None)
-            carrera = next((c for c in carreras if c["id"] == carrera_id), None)
-
-            if periodo and carrera:
-                nombre_carrera = carrera["nombre_corto"].lower().capitalize()
-                resultados.append({
-                    "id": i,
-                    "carrera": nombre_carrera,
-                    "aspirantes": row["total_aspirantes"],
-                    "examinados": row["examinados"],
-                    "no_admitidos": row["no_admitidos"],
-                    "periodo": periodo["descripcion"]
-                })
-                i += 1
-
-        return resultados
-#ruta para reingresos/bajas
 
 @app.get('/equivalencias')
-async def prueba(current_user: User = Depends(get_current_user)):
-    async with database.transaction():
+def equivalencias():
+    resultados = []
     
-        periodos = await get_periodos()
-        carreras = await get_carreras()
-
-        # Consulta principal para obtener los datos de los pagos
-        resultado_query = """
+    with engine.begin() as conn:  # Transacción síncrona
+        # Consultar periodos
+        periodos = conn.execute(text("SELECT id, descripcion FROM periodo")).fetchall()
+        
+        # Consultar carreras
+        carreras = conn.execute(text("SELECT id, nombre_corto FROM carrera")).fetchall()
+        
+        # Consulta principal
+        resultados_db = conn.execute(text("""
             SELECT 
                 periodo_id,
                 nombre_carrera as carrera,
@@ -169,46 +146,44 @@ async def prueba(current_user: User = Depends(get_current_user)):
             FROM pago
             WHERE concepto = 'EQUIVALENCIA, REVALIDACION O TRANSFERENCIA'
             GROUP BY periodo_id, carrera
-        """
-        resultados_db = await database.fetch_all(resultado_query)
+        """)).fetchall()
 
-        resultados = []
-        i = 1
+    # Procesamiento de datos
+    i = 1
+    for row in resultados_db:
+        # Los índices ahora son posicionales: row[0] = periodo_id, row[1] = carrera, etc.
+        periodo = next((p for p in periodos if p[0] == row[0]), None)
+        carrera = next((c for c in carreras if c[1] == row[1]), None)  # Buscar por nombre_corto
 
-        for row in resultados_db:
-            periodo_id = row["periodo_id"]
-            carrera = row["carrera"]
+        if periodo and carrera:
+            resultados.append({
+                "id": i,
+                "carrera": row[1].lower().capitalize(),  # Usamos directamente el nombre del query
+                "aspirantes": row[2],
+                "examinados": row[3],
+                "no_admitidos": row[4],
+                "periodo": periodo[1]  # periodo[1] = descripcion
+            })
+            i += 1
 
-            # Obtener descripciones de periodo y carrera
-            periodo = next((p for p in periodos if p["id"] == periodo_id), None)
-            carrera = next((c for c in carreras if c["nombre_corto"] == carrera), None)
+    return resultados
 
-            if periodo and carrera:
-                nombre_carrera = carrera["nombre_corto"].lower().capitalize()
-                resultados.append({
-                    "id": i,
-                    "carrera": nombre_carrera,
-                    "aspirantes": row["total_aspirantes"],
-                    "examinados": row["examinados"],
-                    "no_admitidos": row["no_admitidos"],
-                    "periodo": periodo["descripcion"]
-                })
-                i += 1
-
-        return resultados
 
 @app.get('/maestrias')
-async def prueba(current_user: User = Depends(get_current_user)):
-    async with database.transaction():
-
-        periodos = await get_periodos()
-
-        # Consulta para obtener las carreras
-        carreras_query = "SELECT id, nombre_oficial FROM carrera WHERE nombre_oficial LIKE '%maestria%'"
-        carreras = await database.fetch_all(carreras_query)
-
-        # Consulta optimizada para obtener los datos de aspirantes agrupados por periodo y carrera
-        resultados_query = """
+def maestrias():
+    resultados = []
+    
+    with engine.begin() as conn:  # Transacción síncrona
+        # Consultar periodos
+        periodos = conn.execute(text("SELECT id, descripcion FROM periodo")).mappings().fetchall()
+        
+        # Consultar carreras de maestría
+        carreras = conn.execute(
+            text("SELECT id, nombre_oficial FROM carrera WHERE nombre_oficial LIKE '%maestria%'")
+        ).mappings().fetchall()
+        
+        # Consulta principal
+        resultados_db = conn.execute(text("""
             SELECT 
                 periodo_id,
                 primera_opcion as carrera_id,
@@ -218,50 +193,42 @@ async def prueba(current_user: User = Depends(get_current_user)):
                 SUM(CASE WHEN estado = 4 THEN 1 ELSE 0 END) as no_admitidos
             FROM aspirante
             GROUP BY periodo_id, primera_opcion
-        """
-        resultados_db = await database.fetch_all(resultados_query)
+        """)).mappings().fetchall()
 
-        resultados = []
+    # Procesamiento de datos
+    i = 1
+    for row in resultados_db:
+        # Buscar relaciones usando diccionarios
+        periodo = next((p for p in periodos if p["id"] == row["periodo_id"]), None)
+        carrera = next((c for c in carreras if c["id"] == row["carrera_id"]), None)
 
-        i = 1
+        if periodo and carrera:
+            resultados.append({
+                "id": i,
+                "carrera": carrera["nombre_oficial"].lower().capitalize(),
+                "aspirantes": row["total_aspirantes"],
+                "examinados": row["examinados"],
+                "no_admitidos": row["no_admitidos"],
+                "periodo": periodo["descripcion"]
+            })
+            i += 1
 
-        # Procesar los resultados de la consulta
-        for row in resultados_db:
-            periodo_id = row["periodo_id"]
-            carrera_id = row["carrera_id"]
-
-            # Obtener descripciones de periodo y carrera
-            periodo = next((p for p in periodos if p["id"] == periodo_id), None)
-            carrera = next((c for c in carreras if c["id"] == carrera_id), None)
-
-            if periodo and carrera:
-                nombre_carrera = carrera["nombre_oficial"].lower().capitalize()
-                resultados.append({
-                    "id": i,
-                    "carrera": nombre_carrera,
-                    "aspirantes": row["total_aspirantes"],
-                    "examinados": row["examinados"],
-                    "no_admitidos": row["no_admitidos"],
-                    "periodo": periodo["descripcion"]
-                })
-                i += 1
-
-        return resultados
-        
-        
+    return resultados
 
 
-        pass
-#carreras_query = "SELECT id, nombre_oficial FROM carrera WHERE nombre_oficial LIKE '%maestria%'"
+
 
 @app.get('/egresados')
-async def prueba(current_user: User = Depends(get_current_user)):
-    async with database.transaction():
-
-
-        carreras = await get_carreras()
+def egresados():
+    resultados = []
+    
+    with engine.begin() as conn:  # Transacción síncrona
+        # Consultar carreras
+        carreras = conn.execute(
+            text("SELECT id, nombre_oficial, nombre_corto FROM carrera")
+        ).mappings().fetchall()
         
-        # Consulta para obtener los egresados por periodo
+        # Consulta principal de egresados
         consulta = """
             SELECT 
                 c.id as carrera, 
@@ -271,7 +238,7 @@ async def prueba(current_user: User = Depends(get_current_user)):
                     WHEN MONTH(e.fecha_titulacion) BETWEEN 1 AND 4 THEN 'ENE-ABR'
                     WHEN MONTH(e.fecha_titulacion) BETWEEN 5 AND 8 THEN 'MAY-AGO'
                     WHEN MONTH(e.fecha_titulacion) BETWEEN 9 AND 12 THEN 'SEP-DIC'
-                END AS periodo,  -- Nombre del periodo
+                END AS periodo,
                 SUM(CASE WHEN p.sexo = 'F' THEN 1 ELSE 0 END) AS mujeres,
                 SUM(CASE WHEN p.sexo = 'M' THEN 1 ELSE 0 END) AS hombres
             FROM egresado AS e
@@ -280,362 +247,299 @@ async def prueba(current_user: User = Depends(get_current_user)):
             JOIN plan_estudio AS pl ON pl.id = m.plan_estudio_id
             JOIN carrera AS c ON c.id = pl.carrera_id
             WHERE m.estado = 'E' AND e.fecha_titulacion IS NOT NULL
-            GROUP BY carrera, m.generacion, c.id, anio, periodo;  -- Agrupa por periodo
+            GROUP BY carrera, m.generacion, c.id, anio, periodo
         """
-        resultados_query = await database.fetch_all(consulta)
-        
-        # Construir la lista de resultados
-        resultados = []
-        for row in resultados_query:
-            carrera_id = row["carrera"]  # Usamos "carrera" en lugar de "carrera_id"
-            
-            # Buscar la carrera correspondiente en la lista de carreras
-            carrera = next((c for c in carreras if c["id"] == carrera_id), None)
-            nombre_carrera = carrera['nombre_oficial'] if carrera else "Carrera no encontrada"
-            
-            # Formatear el nombre de la carrera (si es necesario)
-            if carrera and 'nombre_corto' in carrera and carrera['nombre_corto']:
-                nombre_carrera = carrera['nombre_corto'].lower().capitalize()
-            
-            resultados.append({
-                "carrera": nombre_carrera,  # Usamos el nombre formateado de la carrera
-                "generacion": row["generacion"],
-                "año_egreso": row["anio"],
-                "cuatrimestre": row["periodo"],  # Usamos 'periodo' en lugar de 'cuatrimestre'
-                "hombres": row["hombres"],
-                "mujeres": row["mujeres"],
-                "egresados": row["hombres"] + row["mujeres"]  # Calculamos el total de egresados
-            })
-        
-        return resultados
+        resultados_query = conn.execute(text(consulta)).mappings().fetchall()
 
-@app.get('/egresadostotales')
-async def prueba(current_user: User = Depends(get_current_user)):
-    async with database.transaction():
+    # Procesar resultados
+    for row in resultados_query:
+        carrera = next((c for c in carreras if c["id"] == row["carrera"]), None)
+        
+        nombre_carrera = carrera['nombre_oficial'] if carrera else "Carrera no encontrada"
+        if carrera and carrera.get('nombre_corto'):
+            nombre_carrera = carrera['nombre_corto'].lower().capitalize()
 
-        carreras = await get_carreras()
-        
-        # Consulta para obtener los egresados por periodo
-        consulta = """
-        SELECT c.id as carrera, YEAR(e.fecha_titulacion) as anio,
-        CASE 
-        WHEN MONTH(e.fecha_titulacion) BETWEEN 1 AND 4 THEN 'ENE-ABR'
-        WHEN MONTH(e.fecha_titulacion) BETWEEN 5 AND 8 THEN 'MAY-AGO'
-        WHEN MONTH(e.fecha_titulacion) BETWEEN 9 AND 12 THEN 'SEP-DIC'
-        END AS periodo,  -- Nombre del periodo
-        SUM(CASE WHEN p.sexo = 'F' THEN 1 ELSE 0 END) AS mujeres,
-        SUM(CASE WHEN p.sexo = 'M' THEN 1 ELSE 0 END) AS hombres
-        FROM egresado AS e
-        LEFT JOIN matricula AS m ON e.matricula_id = m.id
-        JOIN persona AS p ON m.persona_id = p.id
-        JOIN plan_estudio AS pl ON pl.id = m.plan_estudio_id
-        JOIN carrera AS c ON c.id = pl.carrera_id
-        WHERE m.estado = 'E' AND e.fecha_titulacion IS NOT NULL
-        GROUP BY carrera, c.id, anio, periodo;  -- Agrupa por periodo
-        """
-        resultados_query = await database.fetch_all(consulta)
-        
-        # Construir la lista de resultados
-        resultados = []
-        for row in resultados_query:
-            carrera_id = row["carrera"]  # Usamos "carrera" en lugar de "carrera_id"
-            
-            # Buscar la carrera correspondiente en la lista de carreras
-            carrera = next((c for c in carreras if c["id"] == carrera_id), None)
-            nombre_carrera = carrera['nombre_oficial'] if carrera else "Carrera no encontrada"
-            
-            # Formatear el nombre de la carrera (si es necesario)
-            if carrera and 'nombre_corto' in carrera and carrera['nombre_corto']:
-                nombre_carrera = carrera['nombre_corto'].lower().capitalize()
-            
-            resultados.append({
-                "carrera": nombre_carrera,  # Usamos el nombre formateado de la carrera
-                "anio": row["anio"],
-                "periodo": row["periodo"],  # Usamos 'periodo' en lugar de 'cuatrimestre'
-                "hombres": row["hombres"],
-                "mujeres": row["mujeres"],
-                "egresados": row["hombres"] + row["mujeres"]  # Calculamos el total de egresados
-            })
-        
-        return resultados
+        resultados.append({
+            "carrera": nombre_carrera,
+            "generacion": row["generacion"],
+            "año_egreso": row["anio"],
+            "cuatrimestre": row["periodo"],
+            "hombres": row["hombres"],
+            "mujeres": row["mujeres"],
+            "egresados": row["hombres"] + row["mujeres"]
+        })
+
+    return resultados
+
+
 
 @app.get('/nuevosIngresos')
-async def nuevos_ingresos(current_user: User = Depends(get_current_user)):
-    async with database.transaction():
+def nuevos_ingresos():
+    resultados = []
+    
+    with engine.begin() as conn:
+        # Obtener carreras
+        carreras = conn.execute(
+            text("SELECT id, nombre_oficial FROM carrera")
+        ).mappings().fetchall()
+        
+        # Consulta principal
+        resultados_query = conn.execute(text("""
+            SELECT 
+                asp.primera_opcion as carrera_id,
+                asp.periodo_id AS IDperiodo,
+                per.sexo,
+                p.descripcion AS periodo,
+                SUM(CASE WHEN m.matricula IS NOT NULL THEN 1 ELSE 0 END) AS ingresados,
+                COUNT(asp.id) AS total_aspirantes,
+                SUM(CASE WHEN asp.estado = 3 THEN 1 ELSE 0 END) AS admitidos,
+                CASE
+                    WHEN p.descripcion LIKE '%PRIMER%' THEN '1er Proceso'
+                    WHEN p.descripcion LIKE '%SEGUNDA%' THEN '2do Proceso'
+                    WHEN p.descripcion LIKE '%TERCER%' THEN '3er Proceso'
+                    WHEN p.descripcion LIKE '%CUARTA%' THEN '4to Proceso'
+                    ELSE '1er Proceso'
+                END AS proceso
+            FROM aspirante AS asp
+            JOIN persona AS per ON asp.persona_id = per.id
+            LEFT JOIN matricula AS m ON m.persona_id = per.id
+            JOIN periodo AS p ON p.id = asp.periodo_id
+            GROUP BY asp.periodo_id, per.sexo, p.descripcion, asp.primera_opcion
+        """)).mappings().fetchall()
 
-        carreras = await get_carreras()
-
-        # Consulta principal para obtener los datos de los aspirantes
-        consulta = """
-        SELECT 
-            asp.primera_opcion as carrera_id,
-            asp.periodo_id AS IDperiodo,
-            per.sexo,
-            p.descripcion AS periodo,
-            SUM(CASE WHEN m.matricula IS NOT NULL THEN 1 ELSE 0 END) AS ingresados,
-            COUNT(asp.id) AS total_aspirantes,
-            SUM(CASE WHEN asp.estado = 3 THEN 1 ELSE 0 END) AS admitidos,
-            CASE
-                WHEN p.descripcion LIKE '%PRIMER%' THEN '1er Proceso'
-                WHEN p.descripcion LIKE '%SEGUNDA%' THEN '2do Proceso'
-                WHEN p.descripcion LIKE '%TERCER%' THEN '3er Proceso'
-                WHEN p.descripcion LIKE '%CUARTA%' THEN '4to Proceso'
-                ELSE '1er Proceso'
-            END AS proceso
-        FROM 
-            aspirante AS asp
-        JOIN 
-            persona AS per ON asp.persona_id = per.id
-        LEFT JOIN 
-            matricula AS m ON m.persona_id = per.id
-        JOIN 
-            periodo AS p ON p.id = asp.periodo_id
-        GROUP BY 
-            asp.periodo_id, per.sexo, p.descripcion, asp.primera_opcion;
-        """
-
-        resultados_query = await database.fetch_all(consulta)
-
-        # Procesar los resultados
-        resultados = []
-        for row in resultados_query:
-            sexo = "Masculino" if row["sexo"] == "M" else "Femenino"
-
-            # Obtener el nombre de la carrera
-            carrera = next((c for c in carreras if c["id"] == row["carrera_id"]), None)
-            nombre_carrera = carrera["nombre_oficial"] if carrera else "Desconocido"
-
-            resultados.append({
-                "admitidos": row["admitidos"],
-                "carrera": nombre_carrera,
-                "inscritos": row["total_aspirantes"],
-                "periodo": row["periodo"],
-                "proceso": row["proceso"],  # Usamos la columna 'proceso' calculada en la consulta
-                "sexo": sexo,
-                "total_ingresos": row["ingresados"]
-            })
-
-        return resultados
+    # Procesar resultados
+    for row in resultados_query:
+        carrera = next((c for c in carreras if c["id"] == row["carrera_id"]), None)
+        sexo = "Masculino" if row["sexo"] == "M" else "Femenino"
+        
+        resultados.append({
+            "admitidos": row["admitidos"],
+            "carrera": carrera["nombre_oficial"] if carrera else "Desconocido",
+            "inscritos": row["total_aspirantes"],
+            "periodo": row["periodo"],
+            "proceso": row["proceso"],
+            "sexo": sexo,
+            "total_ingresos": row["ingresados"]
+        })
+    
+    return resultados
 
 
-#Todavía no sabemos para que se utiliza.
-
-@app.get('/egresados_totales')
-async def prueba(current_user: User = Depends(get_current_user)):
-    async with database.transaction():
-        #4,5,7,8,20
-
-
-        pass
-
-
-
-
-
-@app.get('/titulados')
-async def titulados(current_user: User = Depends(get_current_user)):
-    async with database.transaction():
-        # Consulta para obtener las carreras
-
-        carreras = await get_carreras()
-
-        # Consulta para obtener los egresados por periodo
-        consulta = """
-        SELECT 
-            c.id AS carrera_id, 
-            m.generacion,
-            e.fecha_titulacion AS fecha_titulacion,
+@app.get('/egresadostotales')
+def egresadostotales():
+    resultados = []
+    
+    with engine.begin() as conn:
+        # Obtener carreras
+        carreras = conn.execute(
+            text("SELECT id, nombre_oficial, nombre_corto FROM carrera")
+        ).mappings().fetchall()
+        
+        # Consulta principal
+        resultados_query = conn.execute(text("""
+            SELECT c.id as carrera, YEAR(e.fecha_titulacion) as anio,
             CASE 
                 WHEN MONTH(e.fecha_titulacion) BETWEEN 1 AND 4 THEN 'ENE-ABR'
                 WHEN MONTH(e.fecha_titulacion) BETWEEN 5 AND 8 THEN 'MAY-AGO'
                 WHEN MONTH(e.fecha_titulacion) BETWEEN 9 AND 12 THEN 'SEP-DIC'
-            END AS cuatrimestre, 
-            COUNT(e.id) AS total
-        FROM 
-            egresado AS e
-        LEFT JOIN 
-            matricula AS m ON e.matricula_id = m.id
-        JOIN 
-            persona AS p ON m.persona_id = p.id
-        JOIN 
-            plan_estudio AS pl ON pl.id = m.plan_estudio_id
-        JOIN 
-            carrera AS c ON c.id = pl.carrera_id
-        WHERE 
-            m.estado = 'E' 
-            AND e.fecha_titulacion IS NOT NULL 
-            AND e.estatus = 1
-        GROUP BY 
-            c.id, m.generacion, e.fecha_titulacion, cuatrimestre;
-        """
+            END AS periodo,
+            SUM(CASE WHEN p.sexo = 'F' THEN 1 ELSE 0 END) AS mujeres,
+            SUM(CASE WHEN p.sexo = 'M' THEN 1 ELSE 0 END) AS hombres
+            FROM egresado AS e
+            LEFT JOIN matricula AS m ON e.matricula_id = m.id
+            JOIN persona AS p ON m.persona_id = p.id
+            JOIN plan_estudio AS pl ON pl.id = m.plan_estudio_id
+            JOIN carrera AS c ON c.id = pl.carrera_id
+            WHERE m.estado = 'E' AND e.fecha_titulacion IS NOT NULL
+            GROUP BY carrera, c.id, anio, periodo
+        """)).mappings().fetchall()
 
-        resultados_query = await database.fetch_all(consulta)
-
-        # Construir la lista de resultados
-        resultados = []
-        for row in resultados_query:
-            carrera_id = row["carrera_id"]
-            
-            # Buscar la carrera correspondiente en la lista de carreras
-            carrera = next((c for c in carreras if c["id"] == carrera_id), None)
-            nombre_carrera = carrera["nombre_oficial"] if carrera else "Carrera no encontrada"
-            
-            # Usar el nombre corto si está disponible
-            if carrera and hasattr(carrera, "nombre_corto") and carrera["nombre_corto"]:
-                nombre_carrera = carrera["nombre_corto"].lower().capitalize()
-            
-            resultados.append({
-                "carrera": nombre_carrera,  # Nombre de la carrera formateado
-                "generacion": row["generacion"],
-                "fecha_titulacion": row["fecha_titulacion"],
-                "cuatrimestre_egreso": row["cuatrimestre"],
-                "total": row["total"]
-            })
+    # Procesar resultados
+    for row in resultados_query:
+        carrera = next((c for c in carreras if c["id"] == row["carrera"]), None)
+        nombre = carrera["nombre_corto"].lower().capitalize() if carrera and carrera["nombre_corto"] else carrera["nombre_oficial"] if carrera else "Desconocido"
         
-        return resultados
+        resultados.append({
+            "carrera": nombre,
+            "anio": row["anio"],
+            "periodo": row["periodo"],
+            "hombres": row["hombres"],
+            "mujeres": row["mujeres"],
+            "egresados": row["hombres"] + row["mujeres"]
+        })
+    
+    return resultados
 
 
 
+@app.get('/titulados')
+def titulados():
+    resultados = []
+    
+    with engine.begin() as conn:
+        carreras = conn.execute(
+            text("SELECT id, nombre_oficial, nombre_corto FROM carrera")
+        ).mappings().fetchall()
+        
+        resultados_query = conn.execute(text("""
+            SELECT 
+                c.id AS carrera_id, 
+                m.generacion,
+                DATE(e.fecha_titulacion) AS fecha_titulacion,
+                CASE 
+                    WHEN MONTH(e.fecha_titulacion) BETWEEN 1 AND 4 THEN 'ENE-ABR'
+                    WHEN MONTH(e.fecha_titulacion) BETWEEN 5 AND 8 THEN 'MAY-AGO'
+                    WHEN MONTH(e.fecha_titulacion) BETWEEN 9 AND 12 THEN 'SEP-DIC'
+                END AS cuatrimestre, 
+                COUNT(e.id) AS total
+            FROM egresado AS e
+            LEFT JOIN matricula AS m ON e.matricula_id = m.id
+            JOIN persona AS p ON m.persona_id = p.id
+            JOIN plan_estudio AS pl ON pl.id = m.plan_estudio_id
+            JOIN carrera AS c ON c.id = pl.carrera_id
+            WHERE m.estado = 'E' 
+                AND e.fecha_titulacion IS NOT NULL 
+                AND e.estatus = 1
+            GROUP BY c.id, m.generacion, e.fecha_titulacion, cuatrimestre
+        """)).mappings().fetchall()
+
+    for row in resultados_query:
+        carrera = next((c for c in carreras if c["id"] == row["carrera_id"]), None)
+        nombre = carrera["nombre_corto"].lower().capitalize() if carrera and carrera["nombre_corto"] else carrera["nombre_oficial"] if carrera else "Desconocido"
+        
+        fecha_raw = row["fecha_titulacion"]
+        fecha_formateada = None
+        
+        if fecha_raw:
+            try:
+                fecha_obj = datetime.strptime(str(fecha_raw), "%Y-%m-%d")
+                fecha_formateada = fecha_obj.strftime("%Y-%m-%d")
+            except ValueError:
+                fecha_formateada = "Fecha inválida"
+        
+        resultados.append({
+            "carrera": nombre,
+            "generacion": row["generacion"],
+            "fecha_titulacion": fecha_formateada,
+            "cuatrimestre_egreso": row["cuatrimestre"],
+            "total": row["total"]
+        })
+    
+    return resultados
 
 
 @app.get('/transporte_solicitudes')
-async def prueba(current_user: User = Depends(get_current_user)):
-    async with database.transaction():
-        # Obtener los periodos
-
-        periodos = await get_periodos()
-
-        # Consulta principal
-        consulta = """
-        SELECT 
-            p.nombre_carrera, 
-            p.periodo_id,
-            COALESCE(
-                CASE 
-                    WHEN p.concepto LIKE '%Nocturno%' THEN 'Nocturno'
-                    WHEN p.concepto LIKE '%Matutino%' THEN 'Matutino'
-                    WHEN p.concepto LIKE '%Vespertino%' THEN 'Vespertino'
-                END, 
-                'Desconocido'
-            ) AS turno,
-            COALESCE(
-                CASE 
-                    WHEN p.concepto LIKE '%LOMA - PROL. BERNARDO QUINTANA%' THEN 'Ruta 4'
-                    WHEN p.concepto LIKE '%AV. DE LA LUZ VESPERTINO%' THEN 'Ruta 1'
-                    WHEN p.concepto LIKE '%GOMEZ MORIN%' THEN 'Ruta 2'
-                    WHEN p.concepto LIKE '%PASEO CONSTITUYENTES%' THEN 'Ruta 3'
-                    WHEN p.concepto LIKE '%PIE DE LA CUESTA%' THEN 'Ruta 5'
-                    WHEN p.concepto LIKE '%LIBRAMIENTO SUR PONIENTE%' THEN 'Ruta 6'
-                END, 
-                'Desconocido'
-            ) AS ruta,
-            COUNT(CASE WHEN per.sexo = 'M' THEN 1 END) AS hombres,
-            COUNT(CASE WHEN per.sexo = 'F' THEN 1 END) AS mujeres,
-            COUNT(*) AS total
-        FROM 
-            pago AS p
-        LEFT JOIN 
-            persona AS per ON p.persona_id = per.id
-        LEFT JOIN 
-            matricula AS m ON m.persona_id = per.id
-        WHERE 
-            p.concepto LIKE '%CUOTA DE RECUPERACION%'
-            AND p.concepto NOT LIKE '%(2 DE 3)%'  -- Excluir pagos parciales
-            AND p.concepto NOT LIKE '%(3 DE 3)%' 
-        GROUP BY 
-            turno, ruta, p.periodo_id, p.nombre_carrera;
-        """
-
-        # Ejecutar la consulta principal
-        resultados_query = await database.fetch_all(consulta)
-
-        # Procesar los resultados
-        resultados = []
-        for row in resultados_query:
-            periodo_id = row["periodo_id"]
-            # Buscar la descripción del período correspondiente
-            periodo = next((p["descripcion"] for p in periodos if p["id"] == periodo_id), "Desconocido")
-
-            resultados.append({
-                "hombres": row["hombres"],
-                "mujeres": row["mujeres"],
-                "seleccionados": row["total"],
-                "carrera": row["nombre_carrera"],  # Corregido: usar nombre_carrera en lugar de cuatrimestre
-                "ruta": row["ruta"],
-                "turno": row["turno"],
-                "cuatrimestre": periodo  # Solo la descripción del período
-            })
+def transporte_solicitudes():
+    resultados = []
+    
+    with engine.begin() as conn:
+        # Obtener periodos
+        periodos = conn.execute(
+            text("SELECT id, descripcion FROM periodo")
+        ).mappings().fetchall()
         
-        return resultados
+        # Consulta principal
+        resultados_query = conn.execute(text("""
+            SELECT 
+                p.nombre_carrera, 
+                p.periodo_id,
+                COALESCE(
+                    CASE 
+                        WHEN p.concepto LIKE '%Nocturno%' THEN 'Nocturno'
+                        WHEN p.concepto LIKE '%Matutino%' THEN 'Matutino'
+                        WHEN p.concepto LIKE '%Vespertino%' THEN 'Vespertino'
+                    END, 'Desconocido') AS turno,
+                COALESCE(
+                    CASE 
+                        WHEN p.concepto LIKE '%LOMA - PROL. BERNARDO QUINTANA%' THEN 'Ruta 4'
+                        WHEN p.concepto LIKE '%AV. DE LA LUZ VESPERTINO%' THEN 'Ruta 1'
+                        WHEN p.concepto LIKE '%GOMEZ MORIN%' THEN 'Ruta 2'
+                        WHEN p.concepto LIKE '%PASEO CONSTITUYENTES%' THEN 'Ruta 3'
+                        WHEN p.concepto LIKE '%PIE DE LA CUESTA%' THEN 'Ruta 5'
+                        WHEN p.concepto LIKE '%LIBRAMIENTO SUR PONIENTE%' THEN 'Ruta 6'
+                    END, 'Desconocido') AS ruta,
+                COUNT(CASE WHEN per.sexo = 'M' THEN 1 END) AS hombres,
+                COUNT(CASE WHEN per.sexo = 'F' THEN 1 END) AS mujeres,
+                COUNT(*) AS total
+            FROM pago AS p
+            LEFT JOIN persona AS per ON p.persona_id = per.id
+            LEFT JOIN matricula AS m ON m.persona_id = per.id
+            WHERE p.concepto LIKE '%CUOTA DE RECUPERACION%'
+                AND p.concepto NOT LIKE '%(2 DE 3)%'
+                AND p.concepto NOT LIKE '%(3 DE 3)%' 
+            GROUP BY turno, ruta, p.periodo_id, p.nombre_carrera
+        """)).mappings().fetchall()
+
+    # Procesar resultados
+    for row in resultados_query:
+        periodo = next((p["descripcion"] for p in periodos if p["id"] == row["periodo_id"]), "Desconocido")
+        
+        resultados.append({
+            "hombres": row["hombres"],
+            "mujeres": row["mujeres"],
+            "seleccionados": row["total"],
+            "carrera": row["nombre_carrera"],
+            "ruta": row["ruta"],
+            "turno": row["turno"],
+            "cuatrimestre": periodo
+        })
+    
+    return resultados
+
 
 
 @app.get('/rutas')
-async def rutas(current_user: User = Depends(get_current_user)):
-    async with database.transaction():
-
+def rutas():
+    resultados = []
+    
+    with engine.begin() as conn:
+        # Obtener periodos
+        periodos = conn.execute(
+            text("SELECT id, descripcion FROM periodo")
+        ).mappings().fetchall()
         
-        periodos = await get_periodos()
+        # Consulta principal
+        resultados_query = conn.execute(text("""
+            SELECT 
+                p.periodo_id,
+                COALESCE(
+                    CASE 
+                        WHEN p.concepto LIKE '%Nocturno%' THEN 'Nocturno'
+                        WHEN p.concepto LIKE '%Matutino%' THEN 'Matutino'
+                        WHEN p.concepto LIKE '%Vespertino%' THEN 'Vespertino'
+                    END, 'Desconocido') AS turno,
+                COALESCE(
+                    CASE 
+                        WHEN p.concepto LIKE '%LOMA - PROL. BERNARDO QUINTANA%' THEN 'Ruta 4'
+                        WHEN p.concepto LIKE '%AV. DE LA LUZ VESPERTINO%' THEN 'Ruta 1'
+                        WHEN p.concepto LIKE '%GOMEZ MORIN%' THEN 'Ruta 2'
+                        WHEN p.concepto LIKE '%PASEO CONSTITUYENTES%' THEN 'Ruta 3'
+                        WHEN p.concepto LIKE '%PIE DE LA CUESTA%' THEN 'Ruta 5'
+                        WHEN p.concepto LIKE '%LIBRAMIENTO SUR PONIENTE%' THEN 'Ruta 6'
+                    END, 'Desconocido') AS ruta,
+                COUNT(*) AS total
+            FROM pago AS p
+            LEFT JOIN persona AS per ON p.persona_id = per.id
+            WHERE p.concepto LIKE '%CUOTA DE RECUPERACION MOVILIDAD COMPLETO%' 
+                AND p.estatus = 3 
+                AND p.concepto IS NOT NULL
+                AND p.concepto NOT LIKE '%(2 DE 3)%'
+                AND p.concepto NOT LIKE '%(3 DE 3)%'
+            GROUP BY turno, ruta, p.periodo_id
+            HAVING ruta != 'Desconocido' AND total > 0
+        """)).mappings().fetchall()
 
-        # Consulta principal para obtener los resultados de las rutas
-        consulta = """
-        SELECT 
-            p.periodo_id,
-            COALESCE(
-                CASE 
-                    WHEN p.concepto LIKE '%Nocturno%' THEN 'Nocturno'
-                    WHEN p.concepto LIKE '%Matutino%' THEN 'Matutino'
-                    WHEN p.concepto LIKE '%Vespertino%' THEN 'Vespertino'
-                END, 
-                'Desconocido'
-            ) AS turno,
-            COALESCE(
-                CASE 
-                    WHEN p.concepto LIKE '%LOMA - PROL. BERNARDO QUINTANA%' THEN 'Ruta 4'
-                    WHEN p.concepto LIKE '%AV. DE LA LUZ VESPERTINO%' THEN 'Ruta 1'
-                    WHEN p.concepto LIKE '%GOMEZ MORIN%' THEN 'Ruta 2'
-                    WHEN p.concepto LIKE '%PASEO CONSTITUYENTES%' THEN 'Ruta 3'
-                    WHEN p.concepto LIKE '%PIE DE LA CUESTA%' THEN 'Ruta 5'
-                    WHEN p.concepto LIKE '%LIBRAMIENTO SUR PONIENTE%' THEN 'Ruta 6'
-                END, 
-                'Desconocido'
-            ) AS ruta,
-            COUNT(*) AS total
-        FROM 
-            pago AS p
-        LEFT JOIN 
-            persona AS per ON p.persona_id = per.id
-        WHERE 
-            p.concepto LIKE '%CUOTA DE RECUPERACION MOVILIDAD COMPLETO%' 
-            AND p.estatus = 3 
-            AND p.concepto IS NOT NULL
-            AND p.concepto NOT LIKE '%(2 DE 3)%'  -- Excluir pagos parciales
-            AND p.concepto NOT LIKE '%(3 DE 3)%'  -- Excluir pagos parciales
-        GROUP BY 
-            turno, ruta, p.periodo_id
-        HAVING 
-            ruta != 'Desconocido' 
-            AND total > 0;
-        """
-
-        resultados_query = await database.fetch_all(consulta)
-
-        # Procesar los resultados
-        resultados = []
-
-        for row in resultados_query:
-            periodo_id = row["periodo_id"]
-            # Buscar la descripción del período correspondiente
-            periodo = next((p["descripcion"] for p in periodos if p["id"] == periodo_id), "Desconocido")
-
-            lugares_usados = row["total"]
-            lugares_disponibles = max(50 - lugares_usados, 0)
-
-            resultados.append({
-                "lugares_disp": lugares_disponibles,
-                "pagados": row["total"],
-                "ruta": row["ruta"],
-                "turno": row["turno"],
-                "cuatrimestre": periodo  # Solo la descripción del período
-            })
+    # Procesar resultados
+    for row in resultados_query:
+        periodo = next((p["descripcion"] for p in periodos if p["id"] == row["periodo_id"]), "Desconocido")
+        disponibles = max(50 - row["total"], 0)
         
-        return resultados
+        resultados.append({
+            "lugares_disp": disponibles,
+            "pagados": row["total"],
+            "ruta": row["ruta"],
+            "turno": row["turno"],
+            "cuatrimestre": periodo
+        })
+    
+    return resultados
