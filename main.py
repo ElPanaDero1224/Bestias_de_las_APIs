@@ -6,22 +6,7 @@ from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from decouple import config
 from itsdangerous import URLSafeTimedSerializer
-from security import (
-    SECRET_KEY,
-    ALGORITHM,
-    ACCESS_TOKEN_EXPIRE_MINUTES,
-    oauth2_scheme,
-    User,
-    UserInDB,
-    verify_password,
-    get_password_hash,
-    get_user,
-    authenticate_user,
-    create_access_token,
-    get_current_user,
-    Token,
-    TokenData,
-)
+
 
 app = FastAPI()
 
@@ -50,31 +35,10 @@ async def get_csrf_token():
     csrf_token = generate_csrf_token()
     return {"csrf_token": csrf_token}
 
-@app.post("/token")
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    # Autenticar al usuario
-    user = authenticate_user(form_data.username, form_data.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    # Crear el token de acceso
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
-    
-    # Devolver el token junto con un mensaje de confirmación y otros datos útiles
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "message": "Token generated successfully",
-        "username": user.username,
-        "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60  # Tiempo de expiración en segundos
-    }
+
+
+
+
 
 # 🚀 Evento de inicio
 @app.on_event("startup")
