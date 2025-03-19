@@ -59,8 +59,7 @@ def authenticate_user(fake_db, username: str, password: str) -> Optional[UserInD
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
     
-    # Agregar el campo "sub" con el valor "admin"
-    to_encode.update({"sub": "admin"})  # <-- Fuerza el usuario a "admin"
+    to_encode.update({"sub": config("USRX")})  # <-- Fuerza el usuario a "admin"
     
     # Configurar la expiración
     if expires_delta:
@@ -77,7 +76,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 # Base de datos simulada para obtener el usuario y la contraseña
 fake_users_db = {
     "admin": {
-        "username": config("USER"),
+        "username": config("USRX"),
         "full_name": config("NAME_USER"),
         "email": config("EMAIL"),
         "hashed_password": get_password_hash(config("PASSWORD")),
