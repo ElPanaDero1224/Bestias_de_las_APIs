@@ -55,13 +55,22 @@ def authenticate_user(fake_db, username: str, password: str) -> Optional[UserInD
     return user
 
 # Función para crear un token de acceso
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
+    
+    # Agregar el campo "sub" con el valor "admin"
+    to_encode.update({"sub": config("USER")})  # <-- Fuerza el usuario a "admin"
+    
+    # Configurar la expiración
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
         expire = datetime.utcnow() + timedelta(minutes=15)
+    
     to_encode.update({"exp": expire})
+    
+    # Generar el token
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
