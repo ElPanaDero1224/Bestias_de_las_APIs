@@ -70,12 +70,6 @@ async def get_csrf_token():
     return {"csrf_token": csrf_token}
 
 
-#jwl
-
-
-
-
-
 # 🚀 Evento de inicio
 @app.on_event("startup")
 def startup():
@@ -98,7 +92,7 @@ def ingresos():
 
 # Ruta de prueba modificada
 @app.get('/ingresos')
-def ingresos():
+def ingresos(current_user: str = Depends(get_current_user)):
     resultados = []
     with engine.begin() as conn:  # Transacción síncrona
         # Consulta periodos
@@ -141,7 +135,7 @@ def ingresos():
 
 
 @app.get('/equivalencias')
-def equivalencias():
+def equivalencias(current_user: str = Depends(get_current_user)):
     resultados = []
     
     with engine.begin() as conn:  # Transacción síncrona
@@ -186,7 +180,7 @@ def equivalencias():
 
 
 @app.get('/maestrias')
-def maestrias():
+def maestrias(current_user: str = Depends(get_current_user)):
     resultados = []
     
     with engine.begin() as conn:  # Transacción síncrona
@@ -235,7 +229,7 @@ def maestrias():
 
 
 @app.get('/egresados')
-def egresados():
+def egresados(current_user: str = Depends(get_current_user)):
     resultados = []
     
     with engine.begin() as conn:  # Transacción síncrona
@@ -290,7 +284,7 @@ def egresados():
 
 
 @app.get('/nuevosIngresos')
-def nuevos_ingresos():
+def nuevos_ingresos(current_user: str = Depends(get_current_user)):
     resultados = []
     
     with engine.begin() as conn:
@@ -342,7 +336,7 @@ def nuevos_ingresos():
 
 
 @app.get('/egresadostotales')
-def egresadostotales():
+def egresadostotales(current_user: str = Depends(get_current_user)):
     resultados = []
     
     with engine.begin() as conn:
@@ -389,7 +383,7 @@ def egresadostotales():
 
 
 @app.get('/titulados')
-def titulados():
+def titulados(current_user: str = Depends(get_current_user)):
     resultados = []
     
     with engine.begin() as conn:
@@ -445,7 +439,7 @@ def titulados():
 
 
 @app.get('/transporte_solicitudes')
-def transporte_solicitudes():
+def transporte_solicitudes(current_user: str = Depends(get_current_user)):
     resultados = []
     
     with engine.begin() as conn:
@@ -505,7 +499,7 @@ def transporte_solicitudes():
 
 
 @app.get('/rutas')
-def rutas():
+def rutas(current_user: str = Depends(get_current_user)):
     resultados = []
     
     with engine.begin() as conn:
