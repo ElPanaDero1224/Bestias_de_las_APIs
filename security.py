@@ -91,6 +91,8 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> UserInDB:
         token_data = TokenData(username=username)
     except JWTError:
         raise credentials_exception
+
+    # Verifica si el usuario existe en la base de datos
     user = get_user(fake_users_db, username=token_data.username)
     if user is None:
         raise credentials_exception
