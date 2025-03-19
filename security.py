@@ -60,7 +60,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     to_encode = data.copy()
     
     # Agregar el campo "sub" con el valor "admin"
-    to_encode.update({"sub": config("USER")})  # <-- Fuerza el usuario a "admin"
+    to_encode.update({"sub": "admin"})  # <-- Fuerza el usuario a "admin"
     
     # Configurar la expiración
     if expires_delta:
